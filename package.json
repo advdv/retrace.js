@@ -1,0 +1,45 @@
+{
+  "name": "retrace.js",
+  "version": "0.0.1",
+  "description": "An browser library that uses html parsing to gain an comprehensive overview of newly added nodes",
+  "main": "src/retrace.js",
+  "scripts": {
+    "test": "grunt test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/advanderveer/retrace.js.git"
+  },
+  "keywords": [
+    "htmlparsing",
+    "diff"
+  ],
+  "author": "Ad van der Veer <advanderveer@gmail.com>",
+  "license": "Apache",
+  "bugs": {
+    "url": "https://github.com/advanderveer/retrace.js/issues"
+  },
+  "devDependencies": {
+    "grunt": "~0.4.1",
+    "browserify": "~2.35.2",
+    "grunt-contrib-uglify": "~0.2.7",
+    "grunt-contrib-jshint": "~0.7.1",
+    "grunt-browserify": "~1.2.11",
+    "grunt-contrib-watch": "~0.5.3",
+    "grunt-shell": "~0.6.0",
+    "mocha": "~1.14.0",
+    "should": "~2.1.0",
+    "sinon": "~1.7.3",
+    "karma": "~0.10.4",
+    "karma-mocha": "~0.1.0",
+    "grunt-karma": "~0.6.2",
+    "groc": "git://github.com/gilt/groc.git",
+    "grunt-gh-pages": "~0.9.0"
+  },
+  "dependencies": {
+    "htmlparser": "~1.7.6",
+    "when": "~2.6.0",
+    "deep-diff": "~0.1.4",
+    "q": "~0.9.7"
+  }
+}
