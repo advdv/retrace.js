@@ -357,10 +357,18 @@ var Retrace = function(Parser, Promise, scope, debug) {
     var self = this;
     var content = [];
 
+    /**
+     * Retrieve all commands in this changeset
+     * @return {Array} [description]
+     */
     self.all = function all() {
       return content;
     };
 
+    /**
+     * Add a command to the changeset
+     * @param {object} cmd the command
+     */
     self.add = function add(cmd) {
       if(supported.indexOf(cmd.op) === -1)
         throw new Error('Unsupported operation: ' + cmd.op);
@@ -377,47 +385,50 @@ var Retrace = function(Parser, Promise, scope, debug) {
       content.push(cmd);
     };
 
+    /**
+     * Make an estimated guess for the replacement node based on the original, given type and a tag
+     * @param  {Node} original the original Node
+     * @param  {tag|text|comment} type     the type we are converting to
+     * @param  {string} tag      when switching to  tag, which tag it will be
+     * @return {Node}  the replacementment node
+     */
     self.createReplacementNode = function createReplacementNode(original, type, tag) {
+      //get defaults
+      var replacement = false;
+      if(tag === false)
+        tag = 'ins'; //nice! even has scematic meaning
 
-        //get defaults
-        var replacement = false;
-        if(tag === false)
-          tag = 'ins'; //nice! even has scematic meaning
+      if(type === false) {
+        type = 'tag';
+        if(original.nodeType !== 1)
+          throw new Error('Unexpected type switch');
+      }
 
-        if(type === false) {
-          type = 'tag';
-          if(original.nodeType !== 1)
-            throw new Error('Unexpected type switch');
-        }
-
-        //create new node
-        if(original.nodeType === 1) {
-          if(type === 'tag') {
-            
-            var html = original.outerHTML;
-            html = html.replace(/<[^ >]*/i, '<' + tag);
-            html = html.replace(/<\/.*>$(?!.*<\/)/, '</'+ tag + '>');
-            replacement = document.createElement('div');
-            replacement.innerHTML = html;
-            replacement = replacement.childNodes[0];
-
-          } else if(type === 'text') {
-            replacement = document.createTextNode('');            //from el to text
-          } else {
-            throw new Error('Unexpected switch');
-          }
-
-        } else if(original.nodeType === 3) {
-          if(type === 'tag') {
-            replacement = document.createElement(tag); //from text to el
-          } else {
-            throw new Error('Unexpected switch');
-          }
+      if(original.nodeType === 1 && type === 'tag') {
+          var html = original.outerHTML;
+          html = html.replace(/<[^ >]*/i, '<' + tag);
+          html = html.replace(/<\/.*>$(?!.*<\/)/, '</'+ tag + '>');
+          replacement = document.createElement('div');
+          replacement.innerHTML = html;
+          replacement = replacement.childNodes[0];
+          return replacement;
+      } else {
+        if(type === 'tag') {
+          return document.createElement(tag); //from something else to a tag
+        } else if(type === 'text') {
+          replacement = document.createTextNode(''); //from something else to a text
+          if(original.data !== undefined)
+            replacement.data = original.data;
+          return replacement;
+        } else if(type === 'comment') {
+          replacement = document.createComment(''); //from something else to a text
+          if(original.data !== undefined)
+            replacement.data = original.data;
+          return replacement;
         } else {
-          throw new Error('Unexpected node type: ', original.nodeType);
+          throw new Error('Unexpected switch to:' + type);
         }
-
-        return replacement;
+      }
     };
 
     /**
@@ -462,9 +473,6 @@ var Retrace = function(Parser, Promise, scope, debug) {
      * prevent later changes from happening
      */
     self.sortChanges = function sortChanges(changes) {
-
-      //todo implement
-
       return changes;
     };
 
@@ -716,7 +724,7 @@ var Retrace = function(Parser, Promise, scope, debug) {
    * @param  {NodeRef} ref   an un resolved location object
    * @param  {int} depth indicatees how deep we are in the dom
    */
-  var traverse2 = function(d, lhs, ref, depth)  {
+  var traverse = function(d, lhs, ref, depth)  {
     depth = depth === undefined ? 1 : depth;
     var p = (d.path === undefined) ? ('self') : d.path[0];
     if(debug === true) {
@@ -725,7 +733,7 @@ var Retrace = function(Parser, Promise, scope, debug) {
 
     //if their is a change on the children, it already exists, and the index 
     if(lhs.children !== undefined && lhs.children[d.index] !== undefined && d.kind === 'A' && p === 'children') {
-        traverse2(d.item, lhs.children[d.index], new NodeRef(d.index, ref), depth + 1);
+        traverse(d.item, lhs.children[d.index], new NodeRef(d.index, ref), depth + 1);
     } else {
 
       if(p === 'children') {
@@ -772,8 +780,6 @@ var Retrace = function(Parser, Promise, scope, debug) {
       }
 
     }
-
-
   };
 
   /**
@@ -782,6 +788,9 @@ var Retrace = function(Parser, Promise, scope, debug) {
    */
   self.compare = function() {
     var diff = deep.diff(self.lhs, self.rhs);
+    if(!Array.isArray(diff))
+      return false;
+
     self.changes = new self.Changeset(debug);
 
     if(debug === true)
@@ -789,7 +798,7 @@ var Retrace = function(Parser, Promise, scope, debug) {
 
     var root = new NodeRef(0, scope);
     diff.forEach(function(d){
-      traverse2(d.item, self.lhs[d.index], new NodeRef(d.index, root), 1);
+      traverse(d.item, self.lhs[d.index], new NodeRef(d.index, root), 1);
     });
 
     return self.changes;
@@ -838,83 +847,5 @@ var Retrace = function(Parser, Promise, scope, debug) {
 };
 
 module.exports = Retrace;
-
-
-/*
-
-    self.editTextAt = function editTextAt(parent, index, o, n, depth) {
-      var node = parent.childNodes[index];
-      if(debug === true)
-        console.log(Array(depth).join(' ') +'[DATA][E]:', node, 'from:', o, 'to:', n);
-
-      content.push({
-        op: 'editText',
-        parent: parent,
-        el: node,
-        newText: n
-      });
-
-    };
-
-
-    self.setAttributeAt = function setAttributeAt(parent, index, name, newValue, depth, oldValue) {
-      var node = parent.childNodes[index];
-      if(debug === true)
-        console.log(Array(depth).join(' ') +'[ATTR][N] set:', name, 'of', node, 'to:', newValue);
-
-      content.push({
-        op: 'setAttribute',
-        parent: parent,
-        el: node,
-        name: name,
-        newValue: newValue,
-        oldValue: oldValue
-      });
-    };
-
-    self.removeAttributeAt = function removeAttributeAt(parent, index, name, depth) {
-      var node = parent.childNodes[index];
-      if(debug === true)
-        console.log(Array(depth).join(' ') +'[ATTR][D]:', name, 'of', parent.tagName, '@', index);
-
-      content.push({
-        op: 'removeAttribute',
-        parent: parent,
-        el: node,
-        name: name
-      });
-    };
-
-  };
-
-
-  self.appendAllTo = function appendChange(parentParent, parentIndex, tags, depth) {
-    var parent = parentParent.childNodes[parentIndex];
-    tags.forEach(function(tag, i){
-      self.changes.appendAt(parent, i, tag, depth);
-    });
-  };
-
-
-  self.empty = function empty(parentParent, parentIndex, depth) {
-    var parent = parentParent.childNodes[parentIndex];
-    for (var i = 0; i < parent.childNodes.length; ++i) {
-      self.changes.removeAt(parent, i, depth + 1);
-    }
-  };
-
-  self.setAllAttributesOf = function setAttributes(parent, index, attribs, depth) {  
-    Object.keys(attribs).forEach(function(name){
-      self.changes.setAttributeAt(parent, index, name, attribs[name], depth);
-    });
-  };
-
-  self.removeAllAttributesOf = function removeAllAttributesOf(parent, index, attribs, depth) {
-    Object.keys(attribs).forEach(function(name){
-      self.changes.removeAttributeAt(parent, index, name, attribs[name], depth);
-    });
-  };
-
-*/
 },{"deep-diff":2}]},{},[1])
 ;

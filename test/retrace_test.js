@@ -348,7 +348,7 @@ describe('retrace', function(){
         '</div>'
       ;       
 
-      r = getRetrace(o, true);
+      r = getRetrace(o);
       var start = new Date().getTime();
 
       r.parse(n).done(function(dom){
@@ -410,7 +410,7 @@ describe('retrace', function(){
         '</div>'
       ;       
 
-      r = getRetrace(o, true);
+      r = getRetrace(o);
       var start = new Date().getTime();
 
       r.parse(n).done(function(dom){
@@ -440,44 +440,13 @@ describe('retrace', function(){
         '</div>'
       ;       
 
-      r = getRetrace(o, true);
+      r = getRetrace(o);
       var start = new Date().getTime();
 
       r.parse(n).done(function(dom){
         r.compare().apply();
         var end = new Date().getTime();
         console.log(end - start);
-
-        //console.log(document.body.innerHTML.split('>').join('> \n'));
-
-        document.body.innerHTML.should.equal(n);
-        done();
-      });
-    });
-
-    it('facilitate from tag change', function(done){
-      
-      var o = 
-        '<div>' +
-          '<div><h1>Test</h1></div>' +
-        '</div>'
-      ;       
-
-      var n = 
-        '<div>' +
-          '<div>test!</div>' +
-        '</div>'
-      ;       
-
-      r = getRetrace(o, true);
-      var start = new Date().getTime();
-
-      r.parse(n).done(function(dom){
-        r.compare().apply();
-        var end = new Date().getTime();
-        console.log(end - start);
-
-        //console.log(document.body.innerHTML.split('>').join('> \n'));
 
         document.body.innerHTML.should.equal(n);
         done();
@@ -560,7 +529,34 @@ describe('retrace', function(){
         '</div>'
       ;       
 
-      r = getRetrace(o, true);
+      r = getRetrace(o);
+      var start = new Date().getTime();
+
+      r.parse(n).done(function(dom){
+        r.compare().apply();
+        var end = new Date().getTime();
+        console.log(end - start);
+
+        document.body.innerHTML.should.equal(n);
+        done();
+      });
+    });
+
+    it('facilitate from tag change', function(done){
+      
+      var o = 
+        '<div>' +
+          '<div><h1>Test</h1></div>' +
+        '</div>'
+      ;       
+
+      var n = 
+        '<div>' +
+          '<div>test!</div>' +
+        '</div>'
+      ;       
+
+      r = getRetrace(o);
       var start = new Date().getTime();
 
       r.parse(n).done(function(dom){
@@ -569,13 +565,99 @@ describe('retrace', function(){
         console.log(end - start);
 
         //console.log(document.body.innerHTML.split('>').join('> \n'));
+
         document.body.innerHTML.should.equal(n);
         done();
       });
     });
 
-    // TODO: Test type changes, adding 
-    // TODO: Test falty HTML 
+
+    it('facilitate from tag change', function(done){
+      
+      var o = 
+        '<div>' +
+          '<div><h1>Test</h1></div>' +
+          '<!-- test comment -->' +
+        '</div>'
+      ;       
+
+      var n = 
+        '<div>' +
+          '<div>test!</div>' +
+          'test' +
+        '</div>'
+      ;       
+
+      r = getRetrace(o);
+      var start = new Date().getTime();
+
+      r.parse(n).done(function(dom){
+        r.compare().apply();
+        var end = new Date().getTime();
+        console.log(end - start);
+
+        //console.log(document.body.innerHTML.split('>').join('> \n'));
+
+        document.body.innerHTML.should.equal(n);
+        done();
+      });
+    });
+
+    it('facilitate from tag change reverse', function(done){
+
+      var o = 
+        '<div>' +
+          '<div>test!</div>' +
+          'test' +
+        '</div>'
+      ;      
+      
+      var n = 
+        '<div>' +
+          '<div><h1>Test</h1></div>' +
+          '<!-- test comment -->' +
+        '</div>'
+      ;       
+
+      r = getRetrace(o);
+      var start = new Date().getTime();
+
+      r.parse(n).done(function(dom){
+        r.compare().apply();
+        var end = new Date().getTime();
+        console.log(end - start);
+
+        //console.log(document.body.innerHTML.split('>').join('> \n'));
+
+        document.body.innerHTML.should.equal(n);
+        done();
+      });
+    });
+
+    it('test identical', function(done){
+
+      var o = 
+        '<div>' +
+          '<div>test!</div>' +
+          'test' +
+        '</div>'
+      ;      
+      
+      var n = 
+        '<div>' +
+          '<div>test!</div>' +
+          'test' +
+        '</div>'
+      ;      
+
+      r = getRetrace(o);
+      var start = new Date().getTime();
+
+      r.parse(n).done(function(dom){
+        r.compare().should.equal(false);
+        done();
+      });
+    });
 
   });
 
