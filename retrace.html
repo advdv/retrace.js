@@ -1,0 +1,561 @@
+<!DOCTYPE html><html lang="en"><head><title>retrace</title></head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0"><meta name="groc-relative-root" content=""><meta name="groc-document-path" content="retrace"><meta name="groc-project-path" content="src/retrace.js"><link rel="stylesheet" type="text/css" media="all" href="assets/style.css"><script type="text/javascript" src="assets/behavior.js"></script><body><div id="meta"><div class="file-path">src/retrace.js</div></div><div id="document"><div class="segment"><div class="comments "><div class="wrapper"><p>globals document</p></div></div><div class="code"><div class="wrapper"><span class="kd">var</span> <span class="nx">deep</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;deep-diff&#39;</span><span class="p">);</span>
+
+<span class="kd">var</span> <span class="nx">Retrace</span> <span class="o">=</span> <span class="kd">function</span><span class="p">(</span><span class="nx">Parser</span><span class="p">,</span> <span class="nx">Promise</span><span class="p">,</span> <span class="nx">scope</span><span class="p">,</span> <span class="nx">debug</span><span class="p">)</span> <span class="p">{</span>
+  <span class="nx">debug</span> <span class="o">=</span> <span class="p">(</span><span class="nx">debug</span> <span class="o">===</span> <span class="kc">undefined</span><span class="p">)</span> <span class="o">?</span> <span class="p">(</span><span class="kc">false</span><span class="p">)</span> <span class="o">:</span> <span class="p">(</span><span class="nx">debug</span><span class="p">);</span>
+  <span class="kd">var</span> <span class="nx">self</span> <span class="o">=</span> <span class="k">this</span><span class="p">;</span>
+  <span class="kd">var</span> <span class="nx">parsed</span> <span class="o">=</span> <span class="kc">false</span><span class="p">;</span>   
+  </div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'> </span></p>
+
+<p>Original dom used for comparison</p></div></div><div class="code"><div class="wrapper">  <span class="nx">self</span><span class="p">.</span><span class="nx">lhs</span> <span class="o">=</span> <span class="kc">false</span><span class="p">;</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'> </span></p>
+
+<p>New dom used for comparison</p></div></div><div class="code"><div class="wrapper">  <span class="nx">self</span><span class="p">.</span><span class="nx">rhs</span> <span class="o">=</span> <span class="kc">false</span><span class="p">;</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'> </span></p>
+
+<p>Holds the most recent changeset</p></div></div><div class="code"><div class="wrapper">  <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span> <span class="o">=</span> <span class="kc">false</span><span class="p">;</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'></span></p>
+
+<p>Parse the raw html</p>
+
+<p>Parameters:</p>
+
+<ul>
+<li><strong>html must be a string.</strong><br/>(the html string)</li>
+</ul></div></div><div class="code"><div class="wrapper">  <span class="nx">self</span><span class="p">.</span><span class="nx">parse</span> <span class="o">=</span> <span class="kd">function</span> <span class="nx">parse</span><span class="p">(</span><span class="nx">html</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">parsed</span> <span class="o">=</span> <span class="nx">Promise</span><span class="p">.</span><span class="nx">defer</span><span class="p">();</span>
+    <span class="nx">self</span><span class="p">.</span><span class="nx">parser</span><span class="p">.</span><span class="nx">parseComplete</span><span class="p">(</span><span class="nx">html</span><span class="p">);</span>
+    <span class="k">return</span> <span class="nx">parsed</span><span class="p">.</span><span class="nx">promise</span><span class="p">;</span>
+  <span class="p">};</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'></span></p>
+
+<p>The noderef class represents a pointer to a node, that can be
+resolved and fixed when needed</p>
+
+<p>Parameters:</p>
+
+<ul>
+<li><p><strong>index must be an int.</strong></p></li>
+<li><p><strong>parentRef must be a NodeREF.</strong></p></li>
+</ul></div></div><div class="code"><div class="wrapper">  <span class="kd">var</span> <span class="nx">NodeRef</span> <span class="o">=</span> <span class="kd">function</span><span class="p">(</span><span class="nx">index</span><span class="p">,</span> <span class="nx">parentRef</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">self</span> <span class="o">=</span> <span class="k">this</span><span class="p">;</span>
+    <span class="k">if</span><span class="p">(</span><span class="nx">parentRef</span><span class="p">.</span><span class="nx">nodeName</span> <span class="o">!==</span> <span class="kc">undefined</span><span class="p">)</span> <span class="p">{</span>
+     <span class="k">return</span> <span class="p">{</span>
+      <span class="nx">resolve</span><span class="o">:</span> <span class="kd">function</span><span class="p">(){</span> <span class="k">return</span> <span class="nx">parentRef</span><span class="p">;</span> <span class="p">},</span>
+      <span class="nx">debug</span><span class="o">:</span> <span class="kd">function</span><span class="p">(){</span> <span class="k">return</span> <span class="nx">parentRef</span><span class="p">.</span><span class="nx">nodeName</span><span class="p">.</span><span class="nx">toLowerCase</span><span class="p">();</span> <span class="p">}</span>
+     <span class="p">};</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">parentRef</span><span class="p">.</span><span class="nx">resolve</span> <span class="o">===</span> <span class="kc">undefined</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Node ref requires an static root node or an other Ref&#39;</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="nx">self</span><span class="p">.</span><span class="nx">parentRef</span> <span class="o">=</span> <span class="nx">parentRef</span><span class="p">;</span>
+    <span class="nx">self</span><span class="p">.</span><span class="nx">index</span> <span class="o">=</span> <span class="nx">index</span><span class="p">;</span>
+    <span class="nx">self</span><span class="p">.</span><span class="nx">node</span> <span class="o">=</span> <span class="kc">false</span><span class="p">;</span>
+
+    <span class="nx">self</span><span class="p">.</span><span class="nx">fixate</span> <span class="o">=</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+      <span class="nx">self</span><span class="p">.</span><span class="nx">node</span> <span class="o">=</span> <span class="nx">self</span><span class="p">.</span><span class="nx">resolve</span><span class="p">();</span>
+    <span class="p">};</span>
+
+    <span class="nx">self</span><span class="p">.</span><span class="nx">resolve</span> <span class="o">=</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+      <span class="k">if</span><span class="p">(</span><span class="nx">self</span><span class="p">.</span><span class="nx">node</span> <span class="o">!==</span> <span class="kc">false</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nx">self</span><span class="p">.</span><span class="nx">node</span><span class="p">;</span> <span class="c1">//returned fixed</span>
+
+      <span class="kd">var</span> <span class="nx">parent</span> <span class="o">=</span> <span class="nx">parentRef</span><span class="p">.</span><span class="nx">resolve</span><span class="p">();</span>
+      <span class="k">if</span><span class="p">(</span><span class="nx">parent</span> <span class="o">===</span> <span class="kc">undefined</span><span class="p">)</span> 
+        <span class="k">return</span> <span class="kc">undefined</span><span class="p">;</span>
+
+      <span class="k">return</span> <span class="nx">parent</span><span class="p">.</span><span class="nx">childNodes</span><span class="p">[</span><span class="nx">index</span><span class="p">];</span>
+    <span class="p">};</span>
+
+    <span class="nx">self</span><span class="p">.</span><span class="nx">debug</span> <span class="o">=</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="p">(</span><span class="nx">parentRef</span><span class="p">.</span><span class="nx">debug</span><span class="p">()</span> <span class="o">+</span> <span class="s1">&#39;.&#39;</span> <span class="o">+</span> <span class="nx">self</span><span class="p">.</span><span class="nx">index</span><span class="p">).</span><span class="nx">toLowerCase</span><span class="p">();</span>
+    <span class="p">};</span>
+  <span class="p">};</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'></span></p>
+
+<p>The changeset class the records changes </p>
+
+<p>Parameters:</p>
+
+<ul>
+<li><strong>debug must be a boolean.</strong><br/>(enable debug mode)</li>
+</ul></div></div><div class="code"><div class="wrapper">  <span class="nx">self</span><span class="p">.</span><span class="nx">Changeset</span> <span class="o">=</span> <span class="kd">function</span> <span class="nx">Changeset</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">debug</span> <span class="o">=</span> <span class="p">(</span><span class="nx">debug</span> <span class="o">===</span> <span class="kc">undefined</span><span class="p">)</span> <span class="o">?</span> <span class="p">(</span><span class="kc">false</span><span class="p">)</span> <span class="o">:</span> <span class="p">(</span><span class="nx">debug</span><span class="p">);</span>
+    <span class="kd">var</span> <span class="nx">supported</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;emptyNode&#39;</span><span class="p">,</span> <span class="s1">&#39;removeNode&#39;</span><span class="p">,</span> <span class="s1">&#39;insertNode&#39;</span><span class="p">,</span> <span class="s1">&#39;replaceNode&#39;</span><span class="p">,</span> <span class="s1">&#39;removeAttribute&#39;</span><span class="p">,</span> <span class="s1">&#39;setAttribute&#39;</span><span class="p">,</span> <span class="s1">&#39;setData&#39;</span><span class="p">];</span>
+    <span class="kd">var</span> <span class="nx">self</span> <span class="o">=</span> <span class="k">this</span><span class="p">;</span>
+    <span class="kd">var</span> <span class="nx">content</span> <span class="o">=</span> <span class="p">[];</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'></span></p>
+
+<p>Retrieve all commands in this changeset</p>
+
+<p><strong>Returns an Array</strong><br/>([description])</p></div></div><div class="code"><div class="wrapper">    <span class="nx">self</span><span class="p">.</span><span class="nx">all</span> <span class="o">=</span> <span class="kd">function</span> <span class="nx">all</span><span class="p">()</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="nx">content</span><span class="p">;</span>
+    <span class="p">};</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'></span></p>
+
+<p>Add a command to the changeset</p>
+
+<p>Parameters:</p>
+
+<ul>
+<li><strong>cmd must be an object.</strong><br/>(the command)</li>
+</ul></div></div><div class="code"><div class="wrapper">    <span class="nx">self</span><span class="p">.</span><span class="nx">add</span> <span class="o">=</span> <span class="kd">function</span> <span class="nx">add</span><span class="p">(</span><span class="nx">cmd</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">if</span><span class="p">(</span><span class="nx">supported</span><span class="p">.</span><span class="nx">indexOf</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">op</span><span class="p">)</span> <span class="o">===</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Unsupported operation: &#39;</span> <span class="o">+</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">op</span><span class="p">);</span>
+
+      <span class="k">if</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span> <span class="o">===</span> <span class="kc">undefined</span><span class="p">)</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Command must provide a reference to the subject.&#39;</span><span class="p">);</span>
+
+      <span class="k">if</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">depth</span> <span class="o">===</span> <span class="kc">undefined</span><span class="p">)</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Command must provide a depth property.&#39;</span><span class="p">);</span>
+
+      <span class="k">if</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">order</span> <span class="o">===</span> <span class="kc">undefined</span><span class="p">)</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Command must provide an order property.&#39;</span><span class="p">);</span>
+
+      <span class="nx">content</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">cmd</span><span class="p">);</span>
+    <span class="p">};</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'></span></p>
+
+<p>Make an estimated guess for the replacement node based on the original, given type and a tag</p>
+
+<p>Parameters:</p>
+
+<ul>
+<li><p><strong>original must be a Node.</strong><br/>(the original Node)</p></li>
+<li><p><strong>type can be a tag, a text, or a comment.</strong><br/>(the type we are converting to)</p></li>
+<li><p><strong>tag must be a string.</strong><br/>(when switching to  tag, which tag it will be)</p></li>
+</ul>
+
+<p><strong>Returns a Node</strong><br/>(the replacementment node)</p></div></div><div class="code"><div class="wrapper">    <span class="nx">self</span><span class="p">.</span><span class="nx">createReplacementNode</span> <span class="o">=</span> <span class="kd">function</span> <span class="nx">createReplacementNode</span><span class="p">(</span><span class="nx">original</span><span class="p">,</span> <span class="nx">type</span><span class="p">,</span> <span class="nx">tag</span><span class="p">)</span> <span class="p">{</span>
+      <span class="c1">//get defaults</span>
+      <span class="kd">var</span> <span class="nx">replacement</span> <span class="o">=</span> <span class="kc">false</span><span class="p">;</span>
+      <span class="k">if</span><span class="p">(</span><span class="nx">tag</span> <span class="o">===</span> <span class="kc">false</span><span class="p">)</span>
+        <span class="nx">tag</span> <span class="o">=</span> <span class="s1">&#39;ins&#39;</span><span class="p">;</span> <span class="c1">//nice! even has scematic meaning</span>
+
+      <span class="k">if</span><span class="p">(</span><span class="nx">type</span> <span class="o">===</span> <span class="kc">false</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">type</span> <span class="o">=</span> <span class="s1">&#39;tag&#39;</span><span class="p">;</span>
+        <span class="k">if</span><span class="p">(</span><span class="nx">original</span><span class="p">.</span><span class="nx">nodeType</span> <span class="o">!==</span> <span class="mi">1</span><span class="p">)</span>
+          <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Unexpected type switch&#39;</span><span class="p">);</span>
+      <span class="p">}</span>
+
+      <span class="k">if</span><span class="p">(</span><span class="nx">original</span><span class="p">.</span><span class="nx">nodeType</span> <span class="o">===</span> <span class="mi">1</span> <span class="o">&amp;&amp;</span> <span class="nx">type</span> <span class="o">===</span> <span class="s1">&#39;tag&#39;</span><span class="p">)</span> <span class="p">{</span>
+          <span class="kd">var</span> <span class="nx">html</span> <span class="o">=</span> <span class="nx">original</span><span class="p">.</span><span class="nx">outerHTML</span><span class="p">;</span>
+          <span class="nx">html</span> <span class="o">=</span> <span class="nx">html</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/&lt;[^ &gt;]*/i</span><span class="p">,</span> <span class="s1">&#39;&lt;&#39;</span> <span class="o">+</span> <span class="nx">tag</span><span class="p">);</span>
+          <span class="nx">html</span> <span class="o">=</span> <span class="nx">html</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/&lt;\/.*&gt;$(?!.*&lt;\/)/</span><span class="p">,</span> <span class="s1">&#39;&lt;/&#39;</span><span class="o">+</span> <span class="nx">tag</span> <span class="o">+</span> <span class="s1">&#39;&gt;&#39;</span><span class="p">);</span>
+          <span class="nx">replacement</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nx">createElement</span><span class="p">(</span><span class="s1">&#39;div&#39;</span><span class="p">);</span>
+          <span class="nx">replacement</span><span class="p">.</span><span class="nx">innerHTML</span> <span class="o">=</span> <span class="nx">html</span><span class="p">;</span>
+          <span class="nx">replacement</span> <span class="o">=</span> <span class="nx">replacement</span><span class="p">.</span><span class="nx">childNodes</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
+          <span class="k">return</span> <span class="nx">replacement</span><span class="p">;</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="k">if</span><span class="p">(</span><span class="nx">type</span> <span class="o">===</span> <span class="s1">&#39;tag&#39;</span><span class="p">)</span> <span class="p">{</span>
+          <span class="k">return</span> <span class="nb">document</span><span class="p">.</span><span class="nx">createElement</span><span class="p">(</span><span class="nx">tag</span><span class="p">);</span> <span class="c1">//from something else to a tag</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">type</span> <span class="o">===</span> <span class="s1">&#39;text&#39;</span><span class="p">)</span> <span class="p">{</span>
+          <span class="nx">replacement</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nx">createTextNode</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">);</span> <span class="c1">//from something else to a text</span>
+          <span class="k">if</span><span class="p">(</span><span class="nx">original</span><span class="p">.</span><span class="nx">data</span> <span class="o">!==</span> <span class="kc">undefined</span><span class="p">)</span>
+            <span class="nx">replacement</span><span class="p">.</span><span class="nx">data</span> <span class="o">=</span> <span class="nx">original</span><span class="p">.</span><span class="nx">data</span><span class="p">;</span>
+          <span class="k">return</span> <span class="nx">replacement</span><span class="p">;</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">type</span> <span class="o">===</span> <span class="s1">&#39;comment&#39;</span><span class="p">)</span> <span class="p">{</span>
+          <span class="nx">replacement</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nx">createComment</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">);</span> <span class="c1">//from something else to a text</span>
+          <span class="k">if</span><span class="p">(</span><span class="nx">original</span><span class="p">.</span><span class="nx">data</span> <span class="o">!==</span> <span class="kc">undefined</span><span class="p">)</span>
+            <span class="nx">replacement</span><span class="p">.</span><span class="nx">data</span> <span class="o">=</span> <span class="nx">original</span><span class="p">.</span><span class="nx">data</span><span class="p">;</span>
+          <span class="k">return</span> <span class="nx">replacement</span><span class="p">;</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+          <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Unexpected switch to:&#39;</span> <span class="o">+</span> <span class="nx">type</span><span class="p">);</span>
+        <span class="p">}</span>
+      <span class="p">}</span>
+    <span class="p">};</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'></span></p>
+
+<p>Apply one cmd to the dom</p>
+
+<p>Parameters:</p>
+
+<ul>
+<li><strong>cmd must be an object.</strong><br/>(hash discribing the op)</li>
+</ul>
+
+<p><strong>Returns a mixed</strong><br/>(result of the op)</p></div></div><div class="code"><div class="wrapper">    <span class="nx">self</span><span class="p">.</span><span class="nx">applyOne</span> <span class="o">=</span> <span class="kd">function</span> <span class="nx">applyOne</span><span class="p">(</span><span class="nx">cmd</span><span class="p">)</span> <span class="p">{</span>
+      <span class="kd">var</span> <span class="nx">res</span> <span class="o">=</span> <span class="kc">false</span><span class="p">;</span>
+
+      <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s1">&#39;cmd:&#39;</span><span class="p">,</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">op</span><span class="p">,</span> <span class="s1">&#39;ref:&#39;</span><span class="p">,</span> <span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">().</span><span class="nx">nodeName</span> <span class="o">===</span> <span class="kc">undefined</span><span class="p">)</span> <span class="o">?</span> <span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">())</span> <span class="o">:</span> <span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">().</span><span class="nx">nodeName</span><span class="p">)</span> <span class="p">);</span>
+
+      <span class="k">if</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">op</span> <span class="o">===</span> <span class="s1">&#39;removeNode&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">parentRef</span><span class="p">.</span><span class="nx">resolve</span><span class="p">().</span><span class="nx">removeChild</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">());</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">op</span> <span class="o">===</span> <span class="s1">&#39;removeAttribute&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">().</span><span class="nx">removeAttribute</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">name</span><span class="p">);</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">op</span> <span class="o">===</span> <span class="s1">&#39;setAttribute&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">().</span><span class="nx">setAttribute</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">name</span><span class="p">,</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">value</span><span class="p">);</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">op</span> <span class="o">===</span> <span class="s1">&#39;emptyNode&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">while</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">().</span><span class="nx">firstChild</span><span class="p">)</span> <span class="p">{</span>
+          <span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">().</span><span class="nx">removeChild</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">().</span><span class="nx">firstChild</span><span class="p">);</span>
+        <span class="p">}</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">op</span> <span class="o">===</span> <span class="s1">&#39;insertNode&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">newNode</span> <span class="o">=</span> <span class="nx">self</span><span class="p">.</span><span class="nx">createElement</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">node</span><span class="p">);</span>
+        <span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">().</span><span class="nx">insertBefore</span><span class="p">(</span><span class="nx">newNode</span><span class="p">,</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">().</span><span class="nx">childNodes</span><span class="p">[</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">index</span><span class="p">]);</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">op</span> <span class="o">===</span> <span class="s1">&#39;replaceNode&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">original</span> <span class="o">=</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">();</span>
+        <span class="kd">var</span> <span class="nx">replacement</span> <span class="o">=</span> <span class="nx">self</span><span class="p">.</span><span class="nx">createReplacementNode</span><span class="p">(</span><span class="nx">original</span><span class="p">,</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">type</span><span class="p">,</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">tag</span><span class="p">);</span>
+        <span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">parentRef</span><span class="p">.</span><span class="nx">resolve</span><span class="p">().</span><span class="nx">replaceChild</span><span class="p">(</span><span class="nx">replacement</span><span class="p">,</span> <span class="nx">original</span><span class="p">);</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">op</span> <span class="o">===</span> <span class="s1">&#39;setData&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">node</span> <span class="o">=</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">();</span>
+        <span class="nx">node</span><span class="p">.</span><span class="nx">data</span> <span class="o">=</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">rhs</span><span class="p">;</span>
+      <span class="p">}</span> 
+
+      <span class="k">return</span> <span class="nx">res</span><span class="p">;</span>
+    <span class="p">};</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Order the changes in such a way that destructive operations don't
+prevent later changes from happening</p></div></div><div class="code"><div class="wrapper">    <span class="nx">self</span><span class="p">.</span><span class="nx">sortChanges</span> <span class="o">=</span> <span class="kd">function</span> <span class="nx">sortChanges</span><span class="p">(</span><span class="nx">changes</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="nx">changes</span><span class="p">;</span>
+    <span class="p">};</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'></span></p>
+
+<p>Apply the changeset to the DOM</p>
+
+<p><strong>Returns an array</strong><br/>(command results)</p></div></div><div class="code"><div class="wrapper">    <span class="nx">self</span><span class="p">.</span><span class="nx">apply</span> <span class="o">=</span> <span class="kd">function</span> <span class="nx">apply</span><span class="p">()</span> <span class="p">{</span>
+      <span class="kd">var</span> <span class="nx">res</span> <span class="o">=</span> <span class="p">[];</span>
+
+      <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s1">&#39;-----------------APPLY--------------------&#39;</span><span class="p">);</span>
+      <span class="nx">self</span><span class="p">.</span><span class="nx">sortChanges</span><span class="p">(</span><span class="nx">content</span><span class="p">).</span><span class="nx">forEach</span><span class="p">(</span><span class="kd">function</span><span class="p">(</span><span class="nx">c</span><span class="p">){</span>
+        <span class="nx">res</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">self</span><span class="p">.</span><span class="nx">applyOne</span><span class="p">(</span><span class="nx">c</span><span class="p">));</span>
+      <span class="p">});</span>
+      <span class="k">return</span> <span class="nx">res</span><span class="p">;</span>
+    <span class="p">};</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'></span></p>
+
+<p>Create a new element using htmlparser like config</p>
+
+<p>Parameters:</p>
+
+<ul>
+<li><strong>tag must be an object.</strong><br/>(config describing the tag)</li>
+</ul>
+
+<p><strong>Returns an Element</strong><br/>(the new node)</p></div></div><div class="code"><div class="wrapper">    <span class="nx">self</span><span class="p">.</span><span class="nx">createElement</span> <span class="o">=</span> <span class="kd">function</span> <span class="nx">createElement</span><span class="p">(</span><span class="nx">tag</span><span class="p">)</span> <span class="p">{</span>
+
+      <span class="k">if</span><span class="p">(</span><span class="nx">tag</span><span class="p">.</span><span class="nx">type</span> <span class="o">===</span> <span class="s1">&#39;tag&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">el</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nx">createElement</span><span class="p">(</span><span class="nx">tag</span><span class="p">.</span><span class="nx">name</span><span class="p">);</span>
+        <span class="k">if</span><span class="p">(</span><span class="nx">tag</span><span class="p">.</span><span class="nx">attribs</span><span class="p">)</span> <span class="p">{</span>
+          <span class="nb">Object</span><span class="p">.</span><span class="nx">keys</span><span class="p">(</span><span class="nx">tag</span><span class="p">.</span><span class="nx">attribs</span><span class="p">).</span><span class="nx">forEach</span><span class="p">(</span><span class="kd">function</span><span class="p">(</span><span class="nx">name</span><span class="p">){</span>
+            <span class="nx">el</span><span class="p">.</span><span class="nx">setAttribute</span><span class="p">(</span><span class="nx">name</span><span class="p">,</span> <span class="nx">tag</span><span class="p">.</span><span class="nx">attribs</span><span class="p">[</span><span class="nx">name</span><span class="p">]);</span>
+          <span class="p">});</span> 
+        <span class="p">}</span>
+
+        <span class="k">if</span><span class="p">(</span><span class="nx">tag</span><span class="p">.</span><span class="nx">children</span> <span class="o">!==</span> <span class="kc">undefined</span><span class="p">)</span> <span class="p">{</span>
+          <span class="nx">tag</span><span class="p">.</span><span class="nx">children</span><span class="p">.</span><span class="nx">forEach</span><span class="p">(</span><span class="kd">function</span><span class="p">(</span><span class="nx">c</span><span class="p">){</span>
+            <span class="nx">el</span><span class="p">.</span><span class="nx">appendChild</span><span class="p">(</span><span class="nx">self</span><span class="p">.</span><span class="nx">createElement</span><span class="p">(</span><span class="nx">c</span><span class="p">));</span>
+          <span class="p">});</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="nx">el</span><span class="p">;</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">tag</span><span class="p">.</span><span class="nx">type</span> <span class="o">===</span> <span class="s1">&#39;text&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="nb">document</span><span class="p">.</span><span class="nx">createTextNode</span><span class="p">(</span><span class="nx">tag</span><span class="p">.</span><span class="nx">data</span><span class="p">);</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Creating elements of type &#39;</span> <span class="o">+</span> <span class="nx">tag</span><span class="p">.</span><span class="nx">type</span> <span class="o">+</span> <span class="s1">&#39;is not supported&#39;</span><span class="p">);</span>
+      <span class="p">}</span>
+
+    <span class="p">};</span>
+
+  <span class="p">};</span>
+
+  <span class="kd">var</span> <span class="nx">scheduleChildrenChange</span> <span class="o">=</span> <span class="kd">function</span><span class="p">(</span><span class="nx">d</span><span class="p">,</span> <span class="nx">lhs</span><span class="p">,</span> <span class="nx">ref</span><span class="p">,</span> <span class="nx">depth</span><span class="p">)</span>
+  <span class="p">{</span>
+    <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;N&#39;</span><span class="p">)</span> <span class="p">{</span>
+      <span class="c1">//This happens when previously it had no children</span>
+      <span class="k">if</span><span class="p">(</span><span class="nb">Array</span><span class="p">.</span><span class="nx">isArray</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span><span class="p">))</span> <span class="p">{</span>
+        <span class="c1">//rhs contains new children</span>
+        <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;[CHILDREN][Append] (append all children) &#39;</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span><span class="p">));</span>
+
+        <span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span><span class="p">.</span><span class="nx">forEach</span><span class="p">(</span><span class="kd">function</span><span class="p">(</span><span class="nx">node</span><span class="p">,</span> <span class="nx">i</span><span class="p">){</span>
+          <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span><span class="p">.</span><span class="nx">add</span><span class="p">({</span>
+            <span class="nx">op</span><span class="o">:</span> <span class="s1">&#39;insertNode&#39;</span><span class="p">,</span>
+            <span class="nx">ref</span><span class="o">:</span> <span class="nx">ref</span><span class="p">,</span>
+            <span class="nx">depth</span><span class="o">:</span> <span class="nx">depth</span><span class="p">,</span>
+            <span class="nx">order</span><span class="o">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="nx">index</span><span class="o">:</span> <span class="nx">i</span><span class="p">,</span>
+            <span class="nx">node</span><span class="o">:</span> <span class="nx">node</span>
+          <span class="p">});</span>
+        <span class="p">});</span>
+
+      <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Expected an array for new &quot;children&quot; received:&#39;</span> <span class="o">+</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span><span class="p">));</span>
+      <span class="p">}</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;D&#39;</span><span class="p">)</span> <span class="p">{</span>
+      <span class="c1">//this happens when afterwards it has no children</span>
+      <span class="k">if</span><span class="p">(</span><span class="nb">Array</span><span class="p">.</span><span class="nx">isArray</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">lhs</span><span class="p">))</span> <span class="p">{</span>
+          <span class="c1">//lhs contains old children              </span>
+          <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;[CHILDREN][DELETE] (delete all children) &#39;</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">lhs</span><span class="p">));</span>   
+
+          <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span><span class="p">.</span><span class="nx">add</span><span class="p">({</span>
+            <span class="nx">op</span><span class="o">:</span> <span class="s1">&#39;emptyNode&#39;</span><span class="p">,</span>
+            <span class="nx">ref</span><span class="o">:</span> <span class="nx">ref</span><span class="p">,</span>
+            <span class="nx">depth</span><span class="o">:</span> <span class="nx">depth</span><span class="p">,</span>
+            <span class="nx">order</span><span class="o">:</span> <span class="mi">0</span>          
+          <span class="p">});</span>
+
+      <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Expected an array for old &quot;children&quot; received:&#39;</span> <span class="o">+</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">lhs</span><span class="p">));</span>
+      <span class="p">}</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;A&#39;</span><span class="p">)</span> <span class="p">{</span>
+      <span class="c1">//this the existing children change, new are appended</span>
+      <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">item</span> <span class="o">===</span> <span class="kc">undefined</span> <span class="o">||</span> <span class="k">typeof</span> <span class="nx">d</span><span class="p">.</span><span class="nx">item</span> <span class="o">!==</span> <span class="s1">&#39;object&#39;</span> <span class="o">||</span> <span class="nx">d</span><span class="p">.</span><span class="nx">item</span><span class="p">.</span><span class="nx">kind</span> <span class="o">!==</span> <span class="s1">&#39;N&#39;</span><span class="p">)</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Expected an object for appending &quot;children&quot; received:&#39;</span> <span class="o">+</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">item</span><span class="p">));</span>
+
+      <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;[CHILDREN][Append] (append to existing @&#39;</span> <span class="o">+</span> <span class="nx">d</span><span class="p">.</span><span class="nx">index</span> <span class="o">+</span><span class="s1">&#39;)&#39;</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">item</span><span class="p">.</span><span class="nx">rhs</span><span class="p">));</span>
+
+      <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span><span class="p">.</span><span class="nx">add</span><span class="p">({</span>
+        <span class="nx">op</span><span class="o">:</span> <span class="s1">&#39;insertNode&#39;</span><span class="p">,</span>
+        <span class="nx">ref</span><span class="o">:</span> <span class="nx">ref</span><span class="p">,</span>
+        <span class="nx">depth</span><span class="o">:</span> <span class="nx">depth</span><span class="p">,</span>
+        <span class="nx">order</span><span class="o">:</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="nx">index</span><span class="o">:</span> <span class="nx">d</span><span class="p">.</span><span class="nx">index</span><span class="p">,</span>
+        <span class="nx">node</span><span class="o">:</span> <span class="nx">d</span><span class="p">.</span><span class="nx">item</span><span class="p">.</span><span class="nx">rhs</span>
+      <span class="p">});</span>
+
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+      <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Invalid &quot;children&quot; change kind:&#39;</span> <span class="o">+</span> <span class="nx">d</span><span class="p">.</span><span class="nx">kind</span><span class="p">);</span>
+    <span class="p">}</span>
+  <span class="p">};</span>
+
+  <span class="kd">var</span> <span class="nx">scheduleAttributeChange</span> <span class="o">=</span> <span class="kd">function</span><span class="p">(</span><span class="nx">d</span><span class="p">,</span> <span class="nx">lhs</span><span class="p">,</span> <span class="nx">ref</span><span class="p">,</span> <span class="nx">depth</span><span class="p">)</span> 
+  <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">attrName</span> <span class="o">=</span> <span class="nx">d</span><span class="p">.</span><span class="nx">path</span><span class="p">[</span><span class="mi">1</span><span class="p">];</span>
+    <span class="k">if</span><span class="p">(</span><span class="nx">attrName</span> <span class="o">!==</span> <span class="kc">undefined</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;N&#39;</span><span class="p">)</span> <span class="p">{</span>
+          <span class="c1">//set new attribute</span>
+          <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;[ATTR][NEW] (set new attribute) &#39;</span><span class="p">,</span> <span class="nx">attrName</span> <span class="o">+</span> <span class="s1">&#39;: &#39;</span><span class="o">+</span> <span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span><span class="p">);</span>   
+
+          <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span><span class="p">.</span><span class="nx">add</span><span class="p">({</span>
+            <span class="nx">op</span><span class="o">:</span> <span class="s1">&#39;setAttribute&#39;</span><span class="p">,</span>
+            <span class="nx">ref</span><span class="o">:</span> <span class="nx">ref</span><span class="p">,</span>
+            <span class="nx">depth</span><span class="o">:</span> <span class="nx">depth</span><span class="p">,</span>
+            <span class="nx">order</span><span class="o">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="nx">name</span><span class="o">:</span> <span class="nx">attrName</span><span class="p">,</span>
+            <span class="nx">value</span><span class="o">:</span> <span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span>
+          <span class="p">});</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;E&#39;</span><span class="p">)</span> <span class="p">{</span>
+          <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;[ATTR][EDIT] (set existing attribute) &#39;</span><span class="p">,</span> <span class="nx">attrName</span> <span class="o">+</span> <span class="s1">&#39;: &#39;</span> <span class="o">+</span> <span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span><span class="p">);</span>   
+
+          <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span><span class="p">.</span><span class="nx">add</span><span class="p">({</span>
+            <span class="nx">op</span><span class="o">:</span> <span class="s1">&#39;setAttribute&#39;</span><span class="p">,</span>
+            <span class="nx">ref</span><span class="o">:</span> <span class="nx">ref</span><span class="p">,</span>
+            <span class="nx">depth</span><span class="o">:</span> <span class="nx">depth</span><span class="p">,</span>
+            <span class="nx">order</span><span class="o">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="nx">name</span><span class="o">:</span> <span class="nx">attrName</span><span class="p">,</span>
+            <span class="nx">value</span><span class="o">:</span> <span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span>
+          <span class="p">});</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;D&#39;</span><span class="p">)</span> <span class="p">{</span>
+          <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;[ATTR][DELETE] (existing attribute) &#39;</span><span class="p">,</span> <span class="nx">attrName</span><span class="p">);</span>
+          
+          <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span><span class="p">.</span><span class="nx">add</span><span class="p">({</span>
+            <span class="nx">op</span><span class="o">:</span> <span class="s1">&#39;removeAttribute&#39;</span><span class="p">,</span>
+            <span class="nx">ref</span><span class="o">:</span> <span class="nx">ref</span><span class="p">,</span>
+            <span class="nx">depth</span><span class="o">:</span> <span class="nx">depth</span><span class="p">,</span>
+            <span class="nx">order</span><span class="o">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="nx">name</span><span class="o">:</span> <span class="nx">attrName</span>                
+          <span class="p">});</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Invalid &quot;attribute&quot; change kind:&#39;</span> <span class="o">+</span> <span class="nx">d</span><span class="p">.</span><span class="nx">kind</span><span class="p">);</span>
+      <span class="p">}</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+      <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span> <span class="o">!==</span> <span class="kc">undefined</span> <span class="o">&amp;&amp;</span> <span class="k">typeof</span> <span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span> <span class="o">===</span> <span class="s1">&#39;object&#39;</span> <span class="o">&amp;&amp;</span> <span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;N&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;[ATTR][NEW] (add all attributes) &#39;</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span><span class="p">));</span>   
+        <span class="nb">Object</span><span class="p">.</span><span class="nx">keys</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span><span class="p">).</span><span class="nx">forEach</span><span class="p">(</span><span class="kd">function</span><span class="p">(</span><span class="nx">name</span><span class="p">){</span>
+          <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span><span class="p">.</span><span class="nx">add</span><span class="p">({</span>
+            <span class="nx">op</span><span class="o">:</span> <span class="s1">&#39;setAttribute&#39;</span><span class="p">,</span>
+            <span class="nx">ref</span><span class="o">:</span> <span class="nx">ref</span><span class="p">,</span>
+            <span class="nx">depth</span><span class="o">:</span> <span class="nx">depth</span><span class="p">,</span>
+            <span class="nx">order</span><span class="o">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="nx">name</span><span class="o">:</span> <span class="nx">name</span><span class="p">,</span>
+            <span class="nx">value</span><span class="o">:</span> <span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span><span class="p">[</span><span class="nx">name</span><span class="p">]</span>
+          <span class="p">});</span>
+        <span class="p">});</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">lhs</span> <span class="o">!==</span> <span class="kc">undefined</span> <span class="o">&amp;&amp;</span> <span class="k">typeof</span> <span class="nx">d</span><span class="p">.</span><span class="nx">lhs</span> <span class="o">===</span> <span class="s1">&#39;object&#39;</span> <span class="o">&amp;&amp;</span> <span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;D&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;[ATTR][DELETE] (remove all attributes) &#39;</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">lhs</span><span class="p">));</span>   
+
+        <span class="nb">Object</span><span class="p">.</span><span class="nx">keys</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">lhs</span><span class="p">).</span><span class="nx">forEach</span><span class="p">(</span><span class="kd">function</span><span class="p">(</span><span class="nx">name</span><span class="p">){</span>
+          <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span><span class="p">.</span><span class="nx">add</span><span class="p">({</span>
+            <span class="nx">op</span><span class="o">:</span> <span class="s1">&#39;removeAttribute&#39;</span><span class="p">,</span>
+            <span class="nx">ref</span><span class="o">:</span> <span class="nx">ref</span><span class="p">,</span>
+            <span class="nx">depth</span><span class="o">:</span> <span class="nx">depth</span><span class="p">,</span>
+            <span class="nx">order</span><span class="o">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="nx">name</span><span class="o">:</span> <span class="nx">name</span>                
+          <span class="p">});</span>
+        <span class="p">});</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Expected object has with new or old attributes, received:&#39;</span> <span class="o">+</span> <span class="nx">d</span><span class="p">);</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+  <span class="p">};</span>
+
+  <span class="kd">var</span> <span class="nx">scheduleNodeNameChange</span> <span class="o">=</span> <span class="kd">function</span><span class="p">(</span><span class="nx">d</span><span class="p">,</span> <span class="nx">lhs</span><span class="p">,</span> <span class="nx">ref</span><span class="p">,</span> <span class="nx">depth</span><span class="p">)</span>
+  <span class="p">{</span>
+    <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;E&#39;</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;[TAG][EDIT] (replace) &#39;</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">d</span><span class="p">));</span>   
+
+      <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span><span class="p">.</span><span class="nx">add</span><span class="p">({</span>
+        <span class="nx">op</span><span class="o">:</span> <span class="s1">&#39;replaceNode&#39;</span><span class="p">,</span>
+        <span class="nx">ref</span><span class="o">:</span> <span class="nx">ref</span><span class="p">,</span>
+        <span class="nx">order</span><span class="o">:</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="nx">depth</span><span class="o">:</span> <span class="nx">depth</span><span class="p">,</span>
+        <span class="nx">type</span><span class="o">:</span> <span class="kc">false</span><span class="p">,</span> <span class="c1">//use default</span>
+        <span class="nx">tag</span><span class="o">:</span> <span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span>
+      <span class="p">});</span>
+
+    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;D&#39;</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;[TAG][DELETE] (due to replace) &#39;</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">d</span><span class="p">));</span>
+      <span class="c1">//todo: DUE to REPLACEMENT, will not be missed </span>
+      <span class="c1">//this happens when next round node is changed to a text</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;N&#39;</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;[TAG][NEW] (due to replace) &#39;</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">d</span><span class="p">));</span>
+
+      <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span><span class="p">.</span><span class="nx">add</span><span class="p">({</span>
+        <span class="nx">op</span><span class="o">:</span> <span class="s1">&#39;replaceNode&#39;</span><span class="p">,</span>
+        <span class="nx">ref</span><span class="o">:</span> <span class="nx">ref</span><span class="p">,</span>
+        <span class="nx">order</span><span class="o">:</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="nx">depth</span><span class="o">:</span> <span class="nx">depth</span><span class="p">,</span>
+        <span class="nx">type</span><span class="o">:</span> <span class="kc">false</span><span class="p">,</span> <span class="c1">//use default</span>
+        <span class="nx">tag</span><span class="o">:</span> <span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span>
+      <span class="p">});</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+      <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Invalid &quot;type&quot; change kind:&#39;</span> <span class="o">+</span> <span class="nx">d</span><span class="p">.</span><span class="nx">kind</span><span class="p">);</span>
+    <span class="p">}</span>
+  <span class="p">};</span>
+
+  <span class="kd">var</span> <span class="nx">scheduleDataChange</span> <span class="o">=</span> <span class="kd">function</span><span class="p">(</span><span class="nx">d</span><span class="p">,</span> <span class="nx">lhs</span><span class="p">,</span> <span class="nx">ref</span><span class="p">,</span> <span class="nx">depth</span><span class="p">)</span>
+  <span class="p">{</span>
+    <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;E&#39;</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;(edit content)&#39;</span><span class="p">);</span>
+      <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span><span class="p">.</span><span class="nx">add</span><span class="p">({</span>
+        <span class="nx">op</span><span class="o">:</span> <span class="s1">&#39;setData&#39;</span><span class="p">,</span>
+        <span class="nx">ref</span><span class="o">:</span> <span class="nx">ref</span><span class="p">,</span>
+        <span class="nx">order</span><span class="o">:</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="nx">depth</span><span class="o">:</span> <span class="nx">depth</span><span class="p">,</span>
+        <span class="nx">lhs</span><span class="o">:</span> <span class="nx">d</span><span class="p">.</span><span class="nx">lhs</span><span class="p">,</span>
+        <span class="nx">rhs</span><span class="o">:</span> <span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span>
+      <span class="p">});</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;D&#39;</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;[DATA][DELETE] (due to replace) &#39;</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">d</span><span class="p">));</span>
+      <span class="c1">//todo: DUE to REPLACEMENT //this happens before next round the element is changed to a tag node</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;N&#39;</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;[DATA][NEW] (due to replace) &#39;</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">d</span><span class="p">));</span>
+
+      <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span><span class="p">.</span><span class="nx">add</span><span class="p">({</span>
+        <span class="nx">op</span><span class="o">:</span> <span class="s1">&#39;setData&#39;</span><span class="p">,</span>
+        <span class="nx">ref</span><span class="o">:</span> <span class="nx">ref</span><span class="p">,</span>
+        <span class="nx">order</span><span class="o">:</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="nx">depth</span><span class="o">:</span> <span class="nx">depth</span><span class="p">,</span>
+        <span class="nx">lhs</span><span class="o">:</span> <span class="nx">d</span><span class="p">.</span><span class="nx">lhs</span><span class="p">,</span>
+        <span class="nx">rhs</span><span class="o">:</span> <span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span>
+      <span class="p">});</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+      <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Invalid &quot;data&quot; change kind:&#39;</span> <span class="o">+</span> <span class="nx">d</span><span class="p">.</span><span class="nx">kind</span><span class="p">);</span>
+    <span class="p">}</span>
+  <span class="p">};</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'></span></p>
+
+<p>New Supper power traverse function</p>
+
+<p>Parameters:</p>
+
+<ul>
+<li><p><strong>d must be an object.</strong><br/>(the diff object)</p></li>
+<li><p><strong>lhs must be an object.</strong><br/>(the original reference)</p></li>
+<li><p><strong>ref must be a NodeRef.</strong><br/>(an un resolved location object)</p></li>
+<li><p><strong>depth must be an int.</strong><br/>(indicatees how deep we are in the dom)</p></li>
+</ul></div></div><div class="code"><div class="wrapper">  <span class="kd">var</span> <span class="nx">traverse</span> <span class="o">=</span> <span class="kd">function</span><span class="p">(</span><span class="nx">d</span><span class="p">,</span> <span class="nx">lhs</span><span class="p">,</span> <span class="nx">ref</span><span class="p">,</span> <span class="nx">depth</span><span class="p">)</span>  <span class="p">{</span>
+    <span class="nx">depth</span> <span class="o">=</span> <span class="nx">depth</span> <span class="o">===</span> <span class="kc">undefined</span> <span class="o">?</span> <span class="mi">1</span> <span class="o">:</span> <span class="nx">depth</span><span class="p">;</span>
+    <span class="kd">var</span> <span class="nx">p</span> <span class="o">=</span> <span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">path</span> <span class="o">===</span> <span class="kc">undefined</span><span class="p">)</span> <span class="o">?</span> <span class="p">(</span><span class="s1">&#39;self&#39;</span><span class="p">)</span> <span class="o">:</span> <span class="nx">d</span><span class="p">.</span><span class="nx">path</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
+    <span class="k">if</span><span class="p">(</span><span class="nx">debug</span> <span class="o">===</span> <span class="kc">true</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;[&#39;</span><span class="o">+</span><span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">+</span> <span class="s1">&#39;] &#39;</span> <span class="o">+</span> <span class="nx">ref</span><span class="p">.</span><span class="nx">debug</span><span class="p">());</span>      
+    <span class="p">}</span>
+
+    <span class="c1">//if their is a change on the children, it already exists, and the index </span>
+    <span class="k">if</span><span class="p">(</span><span class="nx">lhs</span><span class="p">.</span><span class="nx">children</span> <span class="o">!==</span> <span class="kc">undefined</span> <span class="o">&amp;&amp;</span> <span class="nx">lhs</span><span class="p">.</span><span class="nx">children</span><span class="p">[</span><span class="nx">d</span><span class="p">.</span><span class="nx">index</span><span class="p">]</span> <span class="o">!==</span> <span class="kc">undefined</span> <span class="o">&amp;&amp;</span> <span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;A&#39;</span> <span class="o">&amp;&amp;</span> <span class="nx">p</span> <span class="o">===</span> <span class="s1">&#39;children&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">traverse</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">item</span><span class="p">,</span> <span class="nx">lhs</span><span class="p">.</span><span class="nx">children</span><span class="p">[</span><span class="nx">d</span><span class="p">.</span><span class="nx">index</span><span class="p">],</span> <span class="k">new</span> <span class="nx">NodeRef</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">index</span><span class="p">,</span> <span class="nx">ref</span><span class="p">),</span> <span class="nx">depth</span> <span class="o">+</span> <span class="mi">1</span><span class="p">);</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+
+      <span class="k">if</span><span class="p">(</span><span class="nx">p</span> <span class="o">===</span> <span class="s1">&#39;children&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">scheduleChildrenChange</span><span class="p">(</span><span class="nx">d</span><span class="p">,</span> <span class="nx">lhs</span><span class="p">,</span> <span class="nx">ref</span><span class="p">,</span> <span class="nx">depth</span><span class="p">);</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">p</span> <span class="o">===</span> <span class="s1">&#39;attribs&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">scheduleAttributeChange</span><span class="p">(</span><span class="nx">d</span><span class="p">,</span> <span class="nx">lhs</span><span class="p">,</span> <span class="nx">ref</span><span class="p">,</span> <span class="nx">depth</span><span class="p">);</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">p</span> <span class="o">===</span> <span class="s1">&#39;name&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">scheduleNodeNameChange</span><span class="p">(</span><span class="nx">d</span><span class="p">,</span> <span class="nx">lhs</span><span class="p">,</span> <span class="nx">ref</span><span class="p">,</span> <span class="nx">depth</span><span class="p">);</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">p</span> <span class="o">===</span> <span class="s1">&#39;data&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">scheduleDataChange</span><span class="p">(</span><span class="nx">d</span><span class="p">,</span> <span class="nx">lhs</span><span class="p">,</span> <span class="nx">ref</span><span class="p">,</span> <span class="nx">depth</span><span class="p">);</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">p</span> <span class="o">===</span> <span class="s1">&#39;type&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;E&#39;</span><span class="p">)</span> <span class="p">{</span>
+          <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;[TYPE][E] (replace) &#39;</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">d</span><span class="p">));</span>   
+
+          <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span><span class="p">.</span><span class="nx">add</span><span class="p">({</span>
+            <span class="nx">op</span><span class="o">:</span> <span class="s1">&#39;replaceNode&#39;</span><span class="p">,</span>
+            <span class="nx">ref</span><span class="o">:</span> <span class="nx">ref</span><span class="p">,</span>
+            <span class="nx">order</span><span class="o">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="nx">depth</span><span class="o">:</span> <span class="nx">depth</span><span class="p">,</span>
+            <span class="nx">type</span><span class="o">:</span> <span class="nx">d</span><span class="p">.</span><span class="nx">rhs</span><span class="p">,</span>
+            <span class="nx">tag</span><span class="o">:</span> <span class="kc">false</span> <span class="c1">//use default</span>
+          <span class="p">});</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+          <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Invalid &quot;type&quot; change kind:&#39;</span> <span class="o">+</span> <span class="nx">d</span><span class="p">.</span><span class="nx">kind</span><span class="p">);</span>
+        <span class="p">}</span>
+
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">p</span> <span class="o">===</span> <span class="s1">&#39;self&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">kind</span> <span class="o">===</span> <span class="s1">&#39;D&#39;</span><span class="p">)</span> <span class="p">{</span>
+          <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nb">Array</span><span class="p">(</span><span class="nx">depth</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;(delete itself) &#39;</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">d</span><span class="p">));</span>  
+
+          <span class="nx">ref</span><span class="p">.</span><span class="nx">fixate</span><span class="p">();</span> <span class="c1">//fix early</span>
+          <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span><span class="p">.</span><span class="nx">add</span><span class="p">({</span>
+            <span class="nx">op</span><span class="o">:</span> <span class="s1">&#39;removeNode&#39;</span><span class="p">,</span>
+            <span class="nx">ref</span><span class="o">:</span> <span class="nx">ref</span><span class="p">,</span>
+            <span class="nx">order</span><span class="o">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="nx">depth</span><span class="o">:</span> <span class="nx">depth</span>
+          <span class="p">});</span>
+
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+          <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Only possible to delete yourself.&#39;</span><span class="p">);</span>
+        <span class="p">}</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Path &quot;&#39;</span> <span class="o">+</span> <span class="nx">p</span> <span class="o">+</span> <span class="s1">&#39;&quot; is not implemented.&#39;</span><span class="p">);</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+  <span class="p">};</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'></span></p>
+
+<p>Compare the lhs and rhs and return the diff</p>
+
+<p><strong>Returns a [type]</strong><br/>([description])</p></div></div><div class="code"><div class="wrapper">  <span class="nx">self</span><span class="p">.</span><span class="nx">compare</span> <span class="o">=</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">diff</span> <span class="o">=</span> <span class="nx">deep</span><span class="p">.</span><span class="nx">diff</span><span class="p">(</span><span class="nx">self</span><span class="p">.</span><span class="nx">lhs</span><span class="p">,</span> <span class="nx">self</span><span class="p">.</span><span class="nx">rhs</span><span class="p">);</span>
+    <span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="nb">Array</span><span class="p">.</span><span class="nx">isArray</span><span class="p">(</span><span class="nx">diff</span><span class="p">))</span>
+      <span class="k">return</span> <span class="kc">false</span><span class="p">;</span>
+
+    <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">self</span><span class="p">.</span><span class="nx">Changeset</span><span class="p">(</span><span class="nx">debug</span><span class="p">);</span>
+
+    <span class="k">if</span><span class="p">(</span><span class="nx">debug</span> <span class="o">===</span> <span class="kc">true</span><span class="p">)</span>
+      <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s1">&#39;-----------------Walk--------------------&#39;</span><span class="p">);</span>
+
+    <span class="kd">var</span> <span class="nx">root</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">NodeRef</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nx">scope</span><span class="p">);</span>
+    <span class="nx">diff</span><span class="p">.</span><span class="nx">forEach</span><span class="p">(</span><span class="kd">function</span><span class="p">(</span><span class="nx">d</span><span class="p">){</span>
+      <span class="nx">traverse</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">item</span><span class="p">,</span> <span class="nx">self</span><span class="p">.</span><span class="nx">lhs</span><span class="p">[</span><span class="nx">d</span><span class="p">.</span><span class="nx">index</span><span class="p">],</span> <span class="k">new</span> <span class="nx">NodeRef</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">index</span><span class="p">,</span> <span class="nx">root</span><span class="p">),</span> <span class="mi">1</span><span class="p">);</span>
+    <span class="p">});</span>
+
+    <span class="k">return</span> <span class="nx">self</span><span class="p">.</span><span class="nx">changes</span><span class="p">;</span>
+  <span class="p">};</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'></span></p>
+
+<p>The handler function</p>
+
+<p>Parameters:</p>
+
+<ul>
+<li><p><strong>error must be a mixed.</strong><br/>(html parser error)</p></li>
+<li><p><strong>dom must be an object.</strong><br/>(the parsed dom)</p></li>
+</ul></div></div><div class="code"><div class="wrapper">  <span class="nx">self</span><span class="p">.</span><span class="nx">handle</span> <span class="o">=</span> <span class="kd">function</span><span class="p">(</span><span class="nx">error</span><span class="p">,</span> <span class="nx">dom</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">error</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">//@todo should reject promise</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">error</span><span class="p">);</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+
+      <span class="k">if</span><span class="p">(</span><span class="nx">self</span><span class="p">.</span><span class="nx">rhs</span> <span class="o">===</span> <span class="kc">false</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">self</span><span class="p">.</span><span class="nx">rhs</span> <span class="o">=</span> <span class="nx">dom</span><span class="p">;</span>
+        <span class="nx">self</span><span class="p">.</span><span class="nx">parser</span><span class="p">.</span><span class="nx">parseComplete</span><span class="p">(</span><span class="nx">scope</span><span class="p">.</span><span class="nx">innerHTML</span><span class="p">);</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="nx">self</span><span class="p">.</span><span class="nx">lhs</span> <span class="o">===</span> <span class="kc">false</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">self</span><span class="p">.</span><span class="nx">lhs</span> <span class="o">=</span> <span class="nx">dom</span><span class="p">;</span>
+        <span class="nx">parsed</span><span class="p">.</span><span class="nx">resolve</span><span class="p">(</span><span class="nx">self</span><span class="p">.</span><span class="nx">rhs</span><span class="p">);</span>        
+      <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="nx">self</span><span class="p">.</span><span class="nx">lhs</span> <span class="o">=</span> <span class="nx">self</span><span class="p">.</span><span class="nx">rhs</span><span class="p">;</span>
+        <span class="nx">self</span><span class="p">.</span><span class="nx">rhs</span> <span class="o">=</span> <span class="nx">dom</span><span class="p">;</span>
+        <span class="nx">parsed</span><span class="p">.</span><span class="nx">resolve</span><span class="p">(</span><span class="nx">self</span><span class="p">.</span><span class="nx">rhs</span><span class="p">);</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+  <span class="p">};</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'> </span></p>
+
+<p>The handler that is called on parse</p></div></div><div class="code"><div class="wrapper">  <span class="nx">self</span><span class="p">.</span><span class="nx">handler</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Parser</span><span class="p">.</span><span class="nx">DefaultHandler</span><span class="p">(</span><span class="nx">self</span><span class="p">.</span><span class="nx">handle</span><span class="p">,</span> <span class="p">{</span> <span class="nx">verbose</span><span class="o">:</span> <span class="kc">false</span><span class="p">,</span> <span class="nx">ignoreWhitespace</span><span class="o">:</span> <span class="kc">true</span> <span class="p">});</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'> </span></p>
+
+<p>The html parser</p></div></div><div class="code"><div class="wrapper">  <span class="nx">self</span><span class="p">.</span><span class="nx">parser</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Parser</span><span class="p">.</span><span class="nx">Parser</span><span class="p">(</span><span class="nx">self</span><span class="p">.</span><span class="nx">handler</span><span class="p">);</span>
+
+<span class="p">};</span>
+
+<span class="nx">module</span><span class="p">.</span><span class="nx">exports</span> <span class="o">=</span> <span class="nx">Retrace</span><span class="p">;</span></div></div></div></div></body></html>
