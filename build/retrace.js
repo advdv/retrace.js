@@ -301,8 +301,6 @@ var Retrace = function(Parser, Promise, scope, debug) {
     return parsed.promise;
   };
 
-
-
   /**
    * The noderef class represents a pointer to a node, that can be
    * resolved and fixed when needed
@@ -457,8 +455,6 @@ var Retrace = function(Parser, Promise, scope, debug) {
       } else if(cmd.op === 'replaceNode') {
         var original = cmd.ref.resolve();
         var replacement = self.createReplacementNode(original, cmd.type, cmd.tag);
-
-        //replace node
         cmd.ref.parentRef.resolve().replaceChild(replacement, original);
       } else if(cmd.op === 'setData') {
         var node = cmd.ref.resolve();
@@ -778,7 +774,6 @@ var Retrace = function(Parser, Promise, scope, debug) {
       } else {
         throw new Error('Path "' + p + '" is not implemented.');
       }
-
     }
   };
 
@@ -827,9 +822,7 @@ var Retrace = function(Parser, Promise, scope, debug) {
         self.rhs = dom;
         parsed.resolve(self.rhs);
       }
-      
     }
-
   };
 
   /**
