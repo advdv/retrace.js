@@ -18,17 +18,16 @@ module.exports = function(grunt) {
       unit: {
         configFile: 'karma.conf.js',
         background: true
+      }, 
+      continues: {
+        configFile: 'karma.conf.js',
+        singleRun: true,
+        browsers: ['PhantomJS']
       }
     },
 
     /* test coverage */
     shell: {
-      coverage: {
-        options: {
-          stdout: true
-        },
-        command: 'istanbul cover --dir=docs/coverage _mocha -- test/**/*_test.js --require="should" --require="sinon"'
-      },
       documentation: {
         command: [
           'node_modules/groc/bin/groc "./src/**/*.js" --out=docs "./README.md"',
@@ -91,8 +90,8 @@ module.exports = function(grunt) {
   grunt.registerTask('default', ['test', 'build']);
 
   grunt.registerTask('start', ['karma:unit','watch']);
-  grunt.registerTask('test', ['jshint', /*'shell:coverage', 'shell:documentation'*/]);
-  grunt.registerTask('build', ['jshint', 'browserify', 'uglify', /*'shell:coverage', 'shell:documentation'*/]);
+  grunt.registerTask('test', ['jshint', 'karma:continues', 'shell:documentation']);
+  grunt.registerTask('build', ['jshint', 'browserify', 'uglify', 'shell:documentation']);
   grunt.registerTask('deploy', ['test', 'build', 'gh-pages', 'shell:deploy']);
 
 };

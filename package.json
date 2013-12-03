@@ -1,6 +1,6 @@
 {
   "name": "retrace.js",
-  "version": "0.0.1",
+  "version": "0.1.1",
   "description": "An browser library that uses html parsing to gain an comprehensive overview of newly added nodes",
   "main": "src/retrace.js",
   "scripts": {
@@ -38,7 +38,6 @@
   },
   "dependencies": {
     "htmlparser": "~1.7.6",
-    "when": "~2.6.0",
     "deep-diff": "~0.1.4",
     "q": "~0.9.7"
   }
