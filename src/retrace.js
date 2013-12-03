@@ -34,6 +34,51 @@ var Retrace = function(Parser, Promise, scope, debug) {
     return parsed.promise;
   };
 
+
+
+  /**
+   * The noderef class represents a pointer to a node, that can be
+   * resolved and fixed when needed
+   * 
+   * @param {int} index     
+   * @param {NodeREF} parentRef 
+   */
+  var NodeRef = function(index, parentRef) {
+    var self = this;
+    if(parentRef.nodeName !== undefined) {
+     return {
+      resolve: function(){ return parentRef; },
+      debug: function(){ return parentRef.nodeName.toLowerCase(); }
+     };
+    } else if(parentRef.resolve === undefined) {
+      throw new Error('Node ref requires an static root node or an other Ref');
+    }
+
+    self.parentRef = parentRef;
+    self.index = index;
+    self.node = false;
+
+    self.fixate = function() {
+      self.node = self.resolve();
+    };
+
+    self.resolve = function() {
+      if(self.node !== false)
+        return self.node; //returned fixed
+
+      var parent = parentRef.resolve();
+      if(parent === undefined) 
+        return undefined;
+
+      return parent.childNodes[index];
+    };
+
+    self.debug = function() {
+      return (parentRef.debug() + '.' + self.index).toLowerCase();
+    };
+  };
+
+
   /**
    * The changeset class the records changes 
    * 
@@ -41,11 +86,71 @@ var Retrace = function(Parser, Promise, scope, debug) {
    */
   self.Changeset = function Changeset(debug) {
     debug = (debug === undefined) ? (false) : (debug);
+    var supported = ['emptyNode', 'removeNode', 'insertNode', 'replaceNode', 'removeAttribute', 'setAttribute', 'setData'];
     var self = this;
     var content = [];
 
     self.all = function all() {
       return content;
+    };
+
+    self.add = function add(cmd) {
+      if(supported.indexOf(cmd.op) === -1)
+        throw new Error('Unsupported operation: ' + cmd.op);
+
+      if(cmd.ref === undefined)
+        throw new Error('Command must provide a reference to the subject.');
+
+      if(cmd.depth === undefined)
+        throw new Error('Command must provide a depth property.');
+
+      if(cmd.order === undefined)
+        throw new Error('Command must provide an order property.');
+
+      content.push(cmd);
+    };
+
+    self.createReplacementNode = function createReplacementNode(original, type, tag) {
+
+        //get defaults
+        var replacement = false;
+        if(tag === false)
+          tag = 'ins'; //nice! even has scematic meaning
+
+        if(type === false) {
+          type = 'tag';
+          if(original.nodeType !== 1)
+            throw new Error('Unexpected type switch');
+        }
+
+        //create new node
+        if(original.nodeType === 1) {
+          if(type === 'tag') {
+            
+            var html = original.outerHTML;
+            html = html.replace(/<[^ >]*/i, '<' + tag);
+            html = html.replace(/<\/.*>$(?!.*<\/)/, '</'+ tag + '>');
+            replacement = document.createElement('div');
+            replacement.innerHTML = html;
+            replacement = replacement.childNodes[0];
+
+          } else if(type === 'text') {
+            replacement = document.createTextNode('');            //from el to text
+          } else {
+            throw new Error('Unexpected switch');
+          }
+
+        } else if(original.nodeType === 3) {
+          if(type === 'tag') {
+            replacement = document.createElement(tag); //from text to el
+          } else {
+            throw new Error('Unexpected switch');
+          }
+        } else {
+          throw new Error('Unexpected node type: ', original.nodeType);
+        }
+
+        return replacement;
     };
 
     /**
@@ -56,40 +161,31 @@ var Retrace = function(Parser, Promise, scope, debug) {
     self.applyOne = function applyOne(cmd) {
       var res = false;
 
-      if(cmd.op === 'remove') {
-        cmd.parent.removeChild(cmd.el);
-      } else if(cmd.op === 'append') {
-        if(cmd.after !== false) {
-          cmd.parent.insertBefore(cmd.el, cmd.el.nextSibling);
-        } else {
-          cmd.parent.appendChild(cmd.el);
-        }
-      } else if(cmd.op === 'replace') {
+      if(debug) console.log('cmd:', cmd.op, 'ref:', (cmd.ref.resolve().nodeName === undefined) ? (cmd.ref.resolve()) : (cmd.ref.resolve().nodeName) );
 
-        var node = cmd.el;
-        var newEl = false;
-
-        if(node.nodeType === 1) {
-          var html = node.outerHTML;
-          html = html.replace(/^<[^> ]*/i, '<'+cmd.tag); //opening tag
-          html = html.replace(new RegExp('</'+node.tagName+'>$', 'i'), '</' + cmd.tag + '>'); //closing tag
-          var div = document.createElement('div');
-          div.innerHTML = html;
-          newEl = div.childNodes[0];
-        } else {
-          throw new Error('Replacement of node of type: ' + node.nodeType + ' is not supported');
-        }
-
-        cmd.parent.replaceChild(newEl, node);
-      } else if(cmd.op === 'editText') {
-        cmd.el.data = cmd.newText;
-      } else if(cmd.op === 'setAttribute') {
-        cmd.el.setAttribute(cmd.name, cmd.newValue);
+      if(cmd.op === 'removeNode') {
+        cmd.ref.parentRef.resolve().removeChild(cmd.ref.resolve());
       } else if(cmd.op === 'removeAttribute') {
-        cmd.el.removeAttribute(cmd.name);
-      } else {
-        throw new Error('Unsupported cmd.op: ' + cmd.op);
-      }
+        cmd.ref.resolve().removeAttribute(cmd.name);
+      } else if(cmd.op === 'setAttribute') {
+        cmd.ref.resolve().setAttribute(cmd.name, cmd.value);
+      } else if(cmd.op === 'emptyNode') {
+        while(cmd.ref.resolve().firstChild) {
+          cmd.ref.resolve().removeChild(cmd.ref.resolve().firstChild);
+        }
+      } else if(cmd.op === 'insertNode') {
+        var newNode = self.createElement(cmd.node);
+        cmd.ref.resolve().insertBefore(newNode, cmd.ref.resolve().childNodes[cmd.index]);
+      } else if(cmd.op === 'replaceNode') {
+        var original = cmd.ref.resolve();
+        var replacement = self.createReplacementNode(original, cmd.type, cmd.tag);
+
+        //replace node
+        cmd.ref.parentRef.resolve().replaceChild(replacement, original);
+      } else if(cmd.op === 'setData') {
+        var node = cmd.ref.resolve();
+        node.data = cmd.rhs;
+      } 
 
       return res;
     };
@@ -100,24 +196,9 @@ var Retrace = function(Parser, Promise, scope, debug) {
      */
     self.sortChanges = function sortChanges(changes) {
 
-      var compare = function (cmdA, cmdB) {
-        if (cmdA.op !== 'replace')
-           return -1;
-        else
-          return 1;
-        return 0;
-      };
+      //todo implement
 
-      var sorted = changes.sort(compare);
-      if(debug === true) {
-        console.log('-----------------Sorted CMDS--------------------');
-        sorted.forEach(function(cmd){
-          console.log(cmd.op, cmd.el);
-        });
-        console.log('-----------------END CMDS--------------------');
-      }
-
-      return sorted;
+      return changes;
     };
 
     /**
@@ -127,6 +208,7 @@ var Retrace = function(Parser, Promise, scope, debug) {
     self.apply = function apply() {
       var res = [];
 
+      if(debug) console.log('-----------------APPLY--------------------');
       self.sortChanges(content).forEach(function(c){
         res.push(self.applyOne(c));
       });
@@ -163,364 +245,267 @@ var Retrace = function(Parser, Promise, scope, debug) {
 
     };
 
-    /**
-     * Append tag at the given index of parent's children
-     * @param  {element} parent [description]
-     * @param  {int} index  [description]
-     * @param  {object} tag    [description]
-     */
-    self.appendAt = function appendAt(parent, index, tag, depth) {
-      var after = parent.childNodes[index - 1];
-      if(debug === true)
-        console.log(Array(depth).join(' ') +'[N] append:', tag, ' to:', parent.tagName, '@', index);
-
-      content.push({
-        op: 'append',
-        parent: parent,
-        el: self.createElement(tag),
-        after: (after === undefined) ? (false) : (after)
-      });
-    };
-
-    /**
-     * Remove a child node at the provided index
-     * @param  {Element} parent the parent node
-     * @param  {int} index  position
-     * @param  {int} depth  debug only
-     */
-    self.removeAt = function removeAt(parent, index, depth) {
-      var node = parent.childNodes[index];
-      if(debug === true)
-        console.log(Array(depth).join(' ') +'[D] remove:', node);
-
-      content.push({
-        op: 'remove',
-        parent: parent,
-        el: node
-      });
-    };
-
-    /**
-     * Replace the element at index of the parent with the new tag
-     * @param  {Element} parent 
-     * @param  {int} index  
-     * @param  {object} tag 
-     * @param  {int} depth  
-     */
-    self.replaceAt = function replaceAt(parent, index, tag, depth) {
-      var node =  parent.childNodes[index];
-      if(debug === true)
-        console.log(Array(depth).join(' ') +'[R]:', node, 'to:', tag, 'parent:', parent.tagName);
-
-      content.push({
-        op: 'replace',
-        parent: parent,
-        el: node,
-        tag: tag
-      });
-    };
-
-    /**
-     * Edit the text nodes of an element
-     * @param  {Element} parent 
-     * @param  {int} index  
-     * @param  {string} o      old data
-     * @param  {string} n      new data
-     * @param  {int} depth  for debug
-     */
-    self.editTextAt = function editTextAt(parent, index, o, n, depth) {
-      var node = parent.childNodes[index];
-      if(debug === true)
-        console.log(Array(depth).join(' ') +'[DATA][E]:', node, 'from:', o, 'to:', n);
-
-      content.push({
-        op: 'editText',
-        parent: parent,
-        el: node,
-        newText: n
-      });
-
-    };
-
-    /**
-     * Set the attribute of an element at the given postions (parent/index)
-     * @param {Element} parent  
-     * @param {int} index   
-     * @param {string} name attrib name
-     * @param {string} newAttr attribute new value
-     * @param {[type]} depth   depth
-     * @param {[type]} oldAttr attr old value
-     */
-    self.setAttributeAt = function setAttributeAt(parent, index, name, newValue, depth, oldValue) {
-      var node = parent.childNodes[index];
-      if(debug === true)
-        console.log(Array(depth).join(' ') +'[ATTR][N] set:', name, 'of', node, 'to:', newValue);
-
-      content.push({
-        op: 'setAttribute',
-        parent: parent,
-        el: node,
-        name: name,
-        newValue: newValue,
-        oldValue: oldValue
-      });
-    };
-
-    self.removeAttributeAt = function removeAttributeAt(parent, index, name, depth) {
-      var node = parent.childNodes[index];
-      if(debug === true)
-        console.log(Array(depth).join(' ') +'[ATTR][D]:', name, 'of', parent.tagName, '@', index);
-
-      content.push({
-        op: 'removeAttribute',
-        parent: parent,
-        el: node,
-        name: name
-      });
-    };
-
   };
 
-  /**
-   * Append all given tags to the parent defined by parent/index
-   * @param  {Element} parentParent parent's parent
-   * @param  {string} index  position of parent int parent's parent
-   * @param  {array} tag    [description]
-   */
-  self.appendAllTo = function appendChange(parentParent, parentIndex, tags, depth) {
-    var parent = parentParent.childNodes[parentIndex];
-    tags.forEach(function(tag, i){
-      self.changes.appendAt(parent, i, tag, depth);
-    });
-  };
+  var scheduleChildrenChange = function(d, lhs, ref, depth)
+  {
+    if(d.kind === 'N') {
+      //This happens when previously it had no children
+      if(Array.isArray(d.rhs)) {
+        //rhs contains new children
+        if(debug) console.log(Array(depth).join(' ') + '[CHILDREN][Append] (append all children) ', JSON.stringify(d.rhs));
 
-
-
-  /**
-   * Empty the parent described by node and index
-   * @param  {Element} parentParent the parent's parent
-   * @param  {int} parentIndex  the index of of the parent
-   * @param  {int} depth        debug
-   */
-  self.empty = function empty(parentParent, parentIndex, depth) {
-    var parent = parentParent.childNodes[parentIndex];
-    for (var i = 0; i < parent.childNodes.length; ++i) {
-      self.changes.removeAt(parent, i, depth + 1);
-    }
-  };
-
-  /**
-   * Set all attributes of the element at the position
-   * @param {Element} parent  
-   * @param {int} index   
-   * @param {object} attribs 
-   * @param {int} depth   
-   */
-  self.setAllAttributesOf = function setAttributes(parent, index, attribs, depth) {  
-    Object.keys(attribs).forEach(function(name){
-      self.changes.setAttributeAt(parent, index, name, attribs[name], depth);
-    });
-  };
-
-  /**
-   * Remove all attributes of of an element at the position
-   * @param  {Element} parent  
-   * @param  {int} index   
-   * @param  {object} attribs 
-   * @param  {int} depth   
-   */
-  self.removeAllAttributesOf = function removeAllAttributesOf(parent, index, attribs, depth) {
-    Object.keys(attribs).forEach(function(name){
-      self.changes.removeAttributeAt(parent, index, name, attribs[name], depth);
-    });
-  };
-
-  /**
-   * Walk over the changes and add them to the changset in an usefull format
-   * @param  {diff} d      the difference object
-   * @param  {Element} scope  current element that were talking about
-   * @param  {Element} parent the parent element 
-   * @param  {int} index  the index of hte scope in the parent element
-   * @param  {int} depth  current depth of the element
-
-  var traverse = function(d, scope, parent, index, depth)  {
-    depth = depth === undefined ? 1 : depth;
-    index = index === undefined ? -1 : index;
-    var p = (d.path === undefined) ? ('self') : d.path[0];
-    if(debug === true)
-      console.log(Array(depth).join(' ') + d.kind + ': ' + p);
-
-    if(p === 'children' || p === 'self') {
-
-      if(d.kind === 'A') {
-        var nscope = scope.childNodes[d.index];
-        traverse(d.item, nscope, scope, d.index, depth + 1);
-      } else if(d.kind === 'D') {
-        //Some child it deleted
-        if(p === 'self') {
-          self.changes.removeAt(parent, index);
-        } else {
-          self.empty(parent, index, depth);
-        }
-
-      } else if(d.kind === 'N') {
-        //Some child it added
-        if(p === 'self') {
-          self.changes.appendAt(parent, index, d.rhs, depth);
-        } else {
-          self.appendAllTo(parent, index, d.rhs, depth);
-        }
-      } else {
-        throw new Error('Unexpected change kind for path "' + p + '", received: ' + d.kind);
-      }
-
-    } else if(p === 'attribs') {
-
-      var name = d.path[1];
-      if(d.kind === 'D') {
-        if(name === undefined) {
-          self.removeAllAttributesOf(parent, index, d.lhs, depth);
-        } else {
-          self.changes.removeAttributeAt(parent, index, name, depth);
-        }
-      } else if(d.kind === 'N') {
-        if(name === undefined) {
-          self.setAllAttributesOf(parent, index, d.rhs, depth);
-        } else {
-          self.changes.setAttributeAt(parent, index, name, d.rhs, depth);
-        }
-      } else if(d.kind === 'E') {
-        self.changes.setAttributeAt(parent, index, name, d.rhs, depth, d.lhs);
-      } else {
-        throw new Error('Unexpected change kind for path "' + p + '", received: ' + d.kind);
-      }
-
-    } else if(p === 'name') {
-      self.changes.replaceAt(parent, index, d.rhs, depth);
-    } else if(p === 'data') {
-      if(d.kind === 'E') {
-        self.changes.editTextAt(parent, index, d.lhs, d.rhs, depth);
-      } else if(d.kind === 'N') {
-
-        //@todo: implement
-        console.log('[TODO] NEW DATA:', d, parent.tagName);
-
-
-      } else if(d.kind === 'D') {
-
-        //@todo: implement
-        console.log('[TODO] DELETE DATA:', d, parent.tagName);
-
+        d.rhs.forEach(function(node, i){
+          self.changes.add({
+            op: 'insertNode',
+            ref: ref,
+            depth: depth,
+            order: 0,
+            index: i,
+            node: node
+          });
+        });
 
       } else {
-        throw new Error('Unexpected change kind for path "' + p + '", received: ' + d.kind);
+        throw new Error('Expected an array for new "children" received:' + JSON.stringify(d.rhs));
       }
-    } else if(p === 'type') {
-      if(d.kind === 'E') {
+    } else if(d.kind === 'D') {
+      //this happens when afterwards it has no children
+      if(Array.isArray(d.lhs)) {
+          //lhs contains old children              
+          if(debug) console.log(Array(depth).join(' ') + '[CHILDREN][DELETE] (delete all children) ', JSON.stringify(d.lhs));   
 
-        console.log(d, parent.tagName, index);
-
+          self.changes.add({
+            op: 'emptyNode',
+            ref: ref,
+            depth: depth,
+            order: 0          
+          });
 
       } else {
-        throw new Error('Unexpected change kind for path "' + p + '", received: ' + d.kind);
+        throw new Error('Expected an array for old "children" received:' + JSON.stringify(d.lhs));
       }
+    } else if(d.kind === 'A') {
+      //this the existing children change, new are appended
+      if(d.item === undefined || typeof d.item !== 'object' || d.item.kind !== 'N')
+        throw new Error('Expected an object for appending "children" received:' + JSON.stringify(d.item));
 
+      if(debug) console.log(Array(depth).join(' ') + '[CHILDREN][Append] (append to existing @' + d.index +')', JSON.stringify(d.item.rhs));
+
+      self.changes.add({
+        op: 'insertNode',
+        ref: ref,
+        depth: depth,
+        order: 0,
+        index: d.index,
+        node: d.item.rhs
+      });
 
     } else {
+      throw new Error('Invalid "children" change kind:' + d.kind);
+    }
+  };
 
-      throw new Error('Path "' + p + '" is not implemented.');
+  var scheduleAttributeChange = function(d, lhs, ref, depth) 
+  {
+    var attrName = d.path[1];
+    if(attrName !== undefined) {
+      if(d.kind === 'N') {
+          //set new attribute
+          if(debug) console.log(Array(depth).join(' ') + '[ATTR][NEW] (set new attribute) ', attrName + ': '+ d.rhs);   
+
+          self.changes.add({
+            op: 'setAttribute',
+            ref: ref,
+            depth: depth,
+            order: 0,
+            name: attrName,
+            value: d.rhs
+          });
+      } else if(d.kind === 'E') {
+          if(debug) console.log(Array(depth).join(' ') + '[ATTR][EDIT] (set existing attribute) ', attrName + ': ' + d.rhs);   
+
+          self.changes.add({
+            op: 'setAttribute',
+            ref: ref,
+            depth: depth,
+            order: 0,
+            name: attrName,
+            value: d.rhs
+          });
+      } else if(d.kind === 'D') {
+          if(debug) console.log(Array(depth).join(' ') + '[ATTR][DELETE] (existing attribute) ', attrName);
+          
+          self.changes.add({
+            op: 'removeAttribute',
+            ref: ref,
+            depth: depth,
+            order: 0,
+            name: attrName                
+          });
+      } else {
+        throw new Error('Invalid "attribute" change kind:' + d.kind);
+      }
+    } else {
+      if(d.rhs !== undefined && typeof d.rhs === 'object' && d.kind === 'N') {
+        if(debug) console.log(Array(depth).join(' ') + '[ATTR][NEW] (add all attributes) ', JSON.stringify(d.rhs));   
+        Object.keys(d.rhs).forEach(function(name){
+          self.changes.add({
+            op: 'setAttribute',
+            ref: ref,
+            depth: depth,
+            order: 0,
+            name: name,
+            value: d.rhs[name]
+          });
+        });
+      } else if(d.lhs !== undefined && typeof d.lhs === 'object' && d.kind === 'D') {
+        if(debug) console.log(Array(depth).join(' ') + '[ATTR][DELETE] (remove all attributes) ', JSON.stringify(d.lhs));   
+
+        Object.keys(d.lhs).forEach(function(name){
+          self.changes.add({
+            op: 'removeAttribute',
+            ref: ref,
+            depth: depth,
+            order: 0,
+            name: name                
+          });
+        });
+      } else {
+        throw new Error('Expected object has with new or old attributes, received:' + d);
+      }
+    }
+  };
+
+  var scheduleNodeNameChange = function(d, lhs, ref, depth)
+  {
+    if(d.kind === 'E') {
+      if(debug) console.log(Array(depth).join(' ') + '[TAG][EDIT] (replace) ', JSON.stringify(d));   
+
+      self.changes.add({
+        op: 'replaceNode',
+        ref: ref,
+        order: 0,
+        depth: depth,
+        type: false, //use default
+        tag: d.rhs
+      });
+
+    } else if(d.kind === 'D') {
+      if(debug) console.log(Array(depth).join(' ') + '[TAG][DELETE] (due to replace) ', JSON.stringify(d));
+      //todo: DUE to REPLACEMENT, will not be missed 
+      //this happens when next round node is changed to a text
+    } else if(d.kind === 'N') {
+      if(debug) console.log(Array(depth).join(' ') + '[TAG][NEW] (due to replace) ', JSON.stringify(d));
+
+      self.changes.add({
+        op: 'replaceNode',
+        ref: ref,
+        order: 0,
+        depth: depth,
+        type: false, //use default
+        tag: d.rhs
+      });
+    } else {
+      throw new Error('Invalid "type" change kind:' + d.kind);
+    }
+  };
+
+  var scheduleDataChange = function(d, lhs, ref, depth)
+  {
+    if(d.kind === 'E') {
+      if(debug) console.log(Array(depth).join(' ') + '(edit content)');
+      self.changes.add({
+        op: 'setData',
+        ref: ref,
+        order: 0,
+        depth: depth,
+        lhs: d.lhs,
+        rhs: d.rhs
+      });
+    } else if(d.kind === 'D') {
+      if(debug) console.log(Array(depth).join(' ') + '[DATA][DELETE] (due to replace) ', JSON.stringify(d));
+      //todo: DUE to REPLACEMENT //this happens before next round the element is changed to a tag node
+    } else if(d.kind === 'N') {
+      if(debug) console.log(Array(depth).join(' ') + '[DATA][NEW] (due to replace) ', JSON.stringify(d));
+
+      self.changes.add({
+        op: 'setData',
+        ref: ref,
+        order: 0,
+        depth: depth,
+        lhs: d.lhs,
+        rhs: d.rhs
+      });
+    } else {
+      throw new Error('Invalid "data" change kind:' + d.kind);
+    }
+  };
+
+  /**
+   * New Supper power traverse function
+   * @param  {object} d     the diff object
+   * @param  {object} lhs   the original reference
+   * @param  {NodeRef} ref   an un resolved location object
+   * @param  {int} depth indicatees how deep we are in the dom
+   */
+  var traverse2 = function(d, lhs, ref, depth)  {
+    depth = depth === undefined ? 1 : depth;
+    var p = (d.path === undefined) ? ('self') : d.path[0];
+    if(debug === true) {
+      console.log(Array(depth).join(' ') + '['+d.kind + '] ' + ref.debug());      
     }
 
-  };
-   */
-
-  var traverse2 = function(d, scope, parent, index, depth)  {
-    depth = depth === undefined ? 1 : depth;
-    index = index === undefined ? -1 : index;
-    var p = (d.path === undefined) ? ('self') : d.path[0];
-    if(debug === true)
-      console.log(Array(depth).join(' ') + d.kind + ': ' + p);
-
-    if(p === 'children' || p === 'self') {
-
-      if(d.kind === 'A') {
-        var nscope = scope.childNodes[d.index];
-        traverse2(d.item, nscope, scope, d.index, depth + 1);
-      } else if(d.kind === 'D') {
-        //Some child it deleted
-        if(p === 'self') {
-          self.changes.removeAt(parent, index);
-        } else {
-          self.empty(parent, index, depth);
-        }
-
-      } else if(d.kind === 'N') {
-        //Some child it added
-        if(p === 'self') {
-          self.changes.appendAt(parent, index, d.rhs, depth);
-        } else {
-          self.appendAllTo(parent, index, d.rhs, depth);
-        }
-      } else {
-        throw new Error('Unexpected change kind for path "' + p + '", received: ' + d.kind);
-      }
-
-    } else if(p === 'attribs') {
-
-      var name = d.path[1];
-      if(d.kind === 'D') {
-        if(name === undefined) {
-          self.removeAllAttributesOf(parent, index, d.lhs, depth);
-        } else {
-          self.changes.removeAttributeAt(parent, index, name, depth);
-        }
-      } else if(d.kind === 'N') {
-        if(name === undefined) {
-          self.setAllAttributesOf(parent, index, d.rhs, depth);
-        } else {
-          self.changes.setAttributeAt(parent, index, name, d.rhs, depth);
-        }
-      } else if(d.kind === 'E') {
-        self.changes.setAttributeAt(parent, index, name, d.rhs, depth, d.lhs);
-      } else {
-        throw new Error('Unexpected change kind for path "' + p + '", received: ' + d.kind);
-      }
-
-    } else if(p === 'name') {
-      self.changes.replaceAt(parent, index, d.rhs, depth);
-    } else if(p === 'data') {
-      if(d.kind === 'E') {
-        self.changes.editTextAt(parent, index, d.lhs, d.rhs, depth);
-      } else if(d.kind === 'N') {
-
-        //@todo: implement
-        console.log('[TODO] NEW DATA:', d, parent.tagName);
-
-
-      } else if(d.kind === 'D') {
-
-        //@todo: implement
-        console.log('[TODO] DELETE DATA:', d, parent.tagName);
-
-
-      } else {
-        throw new Error('Unexpected change kind for path "' + p + '", received: ' + d.kind);
-      }
-    } else if(p === 'type') {
-      if(d.kind === 'E') {
-
-        console.log(d, parent.tagName, index);
-
-
-      } else {
-        throw new Error('Unexpected change kind for path "' + p + '", received: ' + d.kind);
-      }
-
-
+    //if their is a change on the children, it already exists, and the index 
+    if(lhs.children !== undefined && lhs.children[d.index] !== undefined && d.kind === 'A' && p === 'children') {
+        traverse2(d.item, lhs.children[d.index], new NodeRef(d.index, ref), depth + 1);
     } else {
 
-      throw new Error('Path "' + p + '" is not implemented.');
+      if(p === 'children') {
+        scheduleChildrenChange(d, lhs, ref, depth);
+      } else if(p === 'attribs') {
+        scheduleAttributeChange(d, lhs, ref, depth);
+      } else if(p === 'name') {
+        scheduleNodeNameChange(d, lhs, ref, depth);
+      } else if(p === 'data') {
+        scheduleDataChange(d, lhs, ref, depth);
+      } else if(p === 'type') {
+        if(d.kind === 'E') {
+          if(debug) console.log(Array(depth).join(' ') + '[TYPE][E] (replace) ', JSON.stringify(d));   
+
+          self.changes.add({
+            op: 'replaceNode',
+            ref: ref,
+            order: 0,
+            depth: depth,
+            type: d.rhs,
+            tag: false //use default
+          });
+        } else {
+          throw new Error('Invalid "type" change kind:' + d.kind);
+        }
+
+      } else if(p === 'self') {
+        if(d.kind === 'D') {
+          if(debug) console.log(Array(depth).join(' ') + '(delete itself) ', JSON.stringify(d));  
+
+          ref.fixate(); //fix early
+          self.changes.add({
+            op: 'removeNode',
+            ref: ref,
+            order: 0,
+            depth: depth
+          });
+
+        } else {
+          throw new Error('Only possible to delete yourself.');
+        }
+      } else {
+        throw new Error('Path "' + p + '" is not implemented.');
+      }
+
     }
+
 
   };
 
@@ -535,8 +520,9 @@ var Retrace = function(Parser, Promise, scope, debug) {
     if(debug === true)
       console.log('-----------------Walk--------------------');
 
+    var root = new NodeRef(0, scope);
     diff.forEach(function(d){
-      traverse2(d.item, scope.childNodes[d.index], scope, d.index, 1);
+      traverse2(d.item, self.lhs[d.index], new NodeRef(d.index, root), 1);
     });
 
     return self.changes;
@@ -585,3 +571,81 @@ var Retrace = function(Parser, Promise, scope, debug) {
 };
 
 module.exports = Retrace;
+
+
+/*
+
+    self.editTextAt = function editTextAt(parent, index, o, n, depth) {
+      var node = parent.childNodes[index];
+      if(debug === true)
+        console.log(Array(depth).join(' ') +'[DATA][E]:', node, 'from:', o, 'to:', n);
+
+      content.push({
+        op: 'editText',
+        parent: parent,
+        el: node,
+        newText: n
+      });
+
+    };
+
+
+    self.setAttributeAt = function setAttributeAt(parent, index, name, newValue, depth, oldValue) {
+      var node = parent.childNodes[index];
+      if(debug === true)
+        console.log(Array(depth).join(' ') +'[ATTR][N] set:', name, 'of', node, 'to:', newValue);
+
+      content.push({
+        op: 'setAttribute',
+        parent: parent,
+        el: node,
+        name: name,
+        newValue: newValue,
+        oldValue: oldValue
+      });
+    };
+
+    self.removeAttributeAt = function removeAttributeAt(parent, index, name, depth) {
+      var node = parent.childNodes[index];
+      if(debug === true)
+        console.log(Array(depth).join(' ') +'[ATTR][D]:', name, 'of', parent.tagName, '@', index);
+
+      content.push({
+        op: 'removeAttribute',
+        parent: parent,
+        el: node,
+        name: name
+      });
+    };
+
+  };
+
+
+  self.appendAllTo = function appendChange(parentParent, parentIndex, tags, depth) {
+    var parent = parentParent.childNodes[parentIndex];
+    tags.forEach(function(tag, i){
+      self.changes.appendAt(parent, i, tag, depth);
+    });
+  };
+
+
+  self.empty = function empty(parentParent, parentIndex, depth) {
+    var parent = parentParent.childNodes[parentIndex];
+    for (var i = 0; i < parent.childNodes.length; ++i) {
+      self.changes.removeAt(parent, i, depth + 1);
+    }
+  };
+
+  self.setAllAttributesOf = function setAttributes(parent, index, attribs, depth) {  
+    Object.keys(attribs).forEach(function(name){
+      self.changes.setAttributeAt(parent, index, name, attribs[name], depth);
+    });
+  };
+
+  self.removeAllAttributesOf = function removeAllAttributesOf(parent, index, attribs, depth) {
+    Object.keys(attribs).forEach(function(name){
+      self.changes.removeAttributeAt(parent, index, name, attribs[name], depth);
+    });
+  };
+
+*/

@@ -32,7 +32,6 @@ describe('retrace', function(){
 
   });
 
-/*
   it('parse()', function(done){
 
     r.parse('<div>1</div>').then(function(dom1){
@@ -295,100 +294,7 @@ describe('retrace', function(){
 
   });
 
-
-*/
-
   describe('Complex', function(){
-
-    it('do several types', function(done){
-      var o = 
-        '<div>' +
-          '<div>test</div>' +
-        '</div>' +
-        // '<div class="navbar navbar-inverse navbar-fixed-top" role="navigation">' +
-        //   '<div class="container">' +
-        //     '<div class="navbar-header">' +
-        //       '<button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">' +
-        //         '<span class="sr-only">Toggle navigation</span>' +
-        //         '<span class="icon-bar"></span>' +
-        //         '<span class="icon-bar"></span>' +
-        //         '<span class="icon-bar"></span>' +
-        //       '</button>' +
-        //       '<a class="navbar-brand" href="#">Project name</a>' +
-        //     '</div>' +
-        //     '<div class="navbar-collapse collapse">' +
-        //       '<form class="navbar-form navbar-right">' +
-        //         '<div class="form-group">' +
-        //           '<input type="text" placeholder="Email" class="form-control">' +
-        //         '</div>' +
-        //         '<div class="form-group">' +
-        //           '<input type="password" placeholder="Password" class="form-control">' +
-        //         '</div>' +
-        //         '<button type="submit" class="btn btn-success"></button>' +
-        //       '</form>' +
-        //     '</div><!--/.navbar-collapse -->' +
-        //   '</div>' +
-        //   '<p>abc<i>a</i></p>' +
-        //   '<p></p>' +
-        //   '<h1></h1>' +
-        //   '<h2 class="bogus"></h2>' +
-        //   '<h3 class="bogus" id="test2"></h3>' +
-        //   '<h4 class="new"></h4>' +
-        '</div>'
-      ;       
-
-      var n = 
-        '<div>' +
-          '<div><h1>Test</h1></div>' + //This will force a type change of text, and  for a node to be added to an parent that does not exist on creation
-        '</div>' +
-        // '<div class="navbar navbar-inverse navbar-fixed-top" role="navigation">' +
-        //   '<div class="container">' +
-        //     '<div class="navbar-header">' +
-        //       '<button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">' +
-        //         //'<span class="sr-only">Toggle navigation</span>' + // <-- DELETE ONE: keep Children array
-        //         '<span class="icon-bar"></span>' +
-        //         // '<span class="icon-bar"></span>' + // <-- DELETE ONE: keep Children array
-        //         '<span class="icon-bar"><i></i></span>' + // <-- while adding 
-        //       '</button>' +
-        //       '<a class="navbar-brand" href="#">Project name!</a>' +
-        //       '<ul></ul>' + // <- ADD ONE: Use existing children array
-        //     '</div>' +
-        //     '<div class="navbar-collapse collapse">' +
-        //       '<form class="navbar-form navbar-right">' +
-        //         '<div class="form-group">' +
-        //           '<input type="text" placeholder="Email" class="form-control">' +
-        //         '</div>' +
-        //         '<div class="form-group">' +
-        //           // '<input type="password" placeholder="Password" class="form-control">' + // <-- DELETE ALL: remove Children array
-        //         '</div>' +                
-        //         '<button type="submit" class="btn btn-success"><em></em></button>' + //<- ADD ALL: children array
-        //       '</form>' +
-        //     '</div><!--/.navbar-collapse -->' +
-        //   '</div>' +
-        //   '<p></p>' + //<-- Removed ALL DATA
-        //   '<p>test!</p>' + //<-- ALL New DATA
-        //   '<h1 class="bogus"></h1>' +
-        //   '<h2></h2>' + // <- Removed ALL Attribute
-        //   '<h3 class="bogus"></h3>' + //Add all attributes
-        //   '<h6 class="new" id="test"><p></p></h6>' + // <- RENAME: maintain attribs
-        //   '<h4></h4>' +
-        '</div>'
-      ;       
-
-      r = getRetrace(o, true);
-      var start = new Date().getTime();
-
-      r.parse(n).done(function(dom){
-        r.compare().apply();
-        var end = new Date().getTime();
-        console.log(end - start);
-
-        document.body.innerHTML.should.equal(n);
-        done();
-      });
-    });
-
-/*
 
   it('remove major parts', function(done){
       var o = 
@@ -442,7 +348,7 @@ describe('retrace', function(){
         '</div>'
       ;       
 
-      r = getRetrace(o);
+      r = getRetrace(o, true);
       var start = new Date().getTime();
 
       r.parse(n).done(function(dom){
@@ -504,7 +410,7 @@ describe('retrace', function(){
         '</div>'
       ;       
 
-      r = getRetrace(o);
+      r = getRetrace(o, true);
       var start = new Date().getTime();
 
       r.parse(n).done(function(dom){
@@ -512,7 +418,7 @@ describe('retrace', function(){
         var end = new Date().getTime();
         console.log(end - start);
 
-        console.log(document.body.innerHTML.split('>').join('> \n'));
+        //console.log(document.body.innerHTML.split('>').join('> \n'));
 
         document.body.innerHTML.should.equal(n);
         done();
@@ -542,7 +448,36 @@ describe('retrace', function(){
         var end = new Date().getTime();
         console.log(end - start);
 
-        console.log(document.body.innerHTML.split('>').join('> \n'));
+        //console.log(document.body.innerHTML.split('>').join('> \n'));
+
+        document.body.innerHTML.should.equal(n);
+        done();
+      });
+    });
+
+    it('facilitate from tag change', function(done){
+      
+      var o = 
+        '<div>' +
+          '<div><h1>Test</h1></div>' +
+        '</div>'
+      ;       
+
+      var n = 
+        '<div>' +
+          '<div>test!</div>' +
+        '</div>'
+      ;       
+
+      r = getRetrace(o, true);
+      var start = new Date().getTime();
+
+      r.parse(n).done(function(dom){
+        r.compare().apply();
+        var end = new Date().getTime();
+        console.log(end - start);
+
+        //console.log(document.body.innerHTML.split('>').join('> \n'));
 
         document.body.innerHTML.should.equal(n);
         done();
@@ -550,9 +485,97 @@ describe('retrace', function(){
     });
 
 
+    it('do several types', function(done){
+      var o = 
+        '<div>' +
+          '<div>test</div>' +
+        '</div>' +
+        '<div class="navbar navbar-inverse navbar-fixed-top" role="navigation">' +
+          '<div class="container">' +
+            '<div class="navbar-header">' +
+              '<button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">' +
+                '<span class="sr-only">Toggle navigation</span>' +
+                '<span class="icon-bar"></span>' +
+                '<span class="icon-bar"></span>' +
+                '<span class="icon-bar"></span>' +
+              '</button>' +
+              '<a class="navbar-brand" href="#">Project name</a>' +
+            '</div>' +
+            '<div class="navbar-collapse collapse">' +
+              '<form class="navbar-form navbar-right">' +
+                '<div class="form-group">' +
+                  '<input type="text" placeholder="Email" class="form-control">' +
+                '</div>' +
+                '<div class="form-group">' +
+                  '<input type="password" placeholder="Password" class="form-control">' +
+                '</div>' +
+                '<button type="submit" class="btn btn-success"></button>' +
+              '</form>' +
+            '</div><!--/.navbar-collapse -->' +
+          '</div>' +
+          '<p>abc<i>a</i></p>' +
+          '<p></p>' +
+          '<h1></h1>' +
+          '<h2 class="bogus"></h2>' +
+          '<h3 class="bogus" id="test2"></h3>' +
+          '<h4 class="new"></h4>' +
+        '</div>'
+      ;       
+
+      var n = 
+        '<div>' +
+          '<div><h1>Test</h1></div>' + //This will force a type change of text, and  for a node to be added to an parent that does not exist on creation
+        '</div>' +
+        '<div class="navbar navbar-inverse navbar-fixed-top" role="navigation">' +
+          '<div class="container">' +
+            '<div class="navbar-header">' +
+              '<button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">' +
+                //'<span class="sr-only">Toggle navigation</span>' + // <-- DELETE ONE: keep Children array
+                '<span class="icon-bar"></span>' +
+                // '<span class="icon-bar"></span>' + // <-- DELETE ONE: keep Children array
+                '<span class="icon-bar"><i></i></span>' + // <-- while adding 
+              '</button>' +
+              '<a class="navbar-brand" href="#">Project name!</a>' +
+              '<ul></ul>' + // <- ADD ONE: Use existing children array
+            '</div>' +
+            '<div class="navbar-collapse collapse">' +
+              '<form class="navbar-form navbar-right">' +
+                '<div class="form-group">' +
+                  '<input type="text" placeholder="Email" class="form-control">' +
+                '</div>' +
+                '<div class="form-group">' +
+                  // '<input type="password" placeholder="Password" class="form-control">' + // <-- DELETE ALL: remove Children array
+                '</div>' +                
+                '<button type="submit" class="btn btn-success"><em></em></button>' + //<- ADD ALL: children array
+              '</form>' +
+            '</div><!--/.navbar-collapse -->' +
+          '</div>' +
+          '<p></p>' + //<-- Removed ALL DATA
+          '<p>test!</p>' + //<-- ALL New DATA
+          '<h1 class="bogus"></h1>' +
+          '<h2></h2>' + // <- Removed ALL Attribute
+          '<h3 class="bogus"></h3>' + //Add all attributes
+          '<h6 class="new" id="test"><p></p></h6>' + // <- RENAME: maintain attribs
+          '<h4></h4>' +
+        '</div>'
+      ;       
+
+      r = getRetrace(o, true);
+      var start = new Date().getTime();
+
+      r.parse(n).done(function(dom){
+        r.compare().apply();
+        var end = new Date().getTime();
+        console.log(end - start);
+
+        //console.log(document.body.innerHTML.split('>').join('> \n'));
+        document.body.innerHTML.should.equal(n);
+        done();
+      });
+    });
+
     // TODO: Test type changes, adding 
     // TODO: Test falty HTML 
-*/
 
   });
 
