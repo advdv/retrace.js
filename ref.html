@@ -1,0 +1,60 @@
+<!DOCTYPE html><html lang="en"><head><title>ref</title></head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0"><meta name="groc-relative-root" content=""><meta name="groc-document-path" content="ref"><meta name="groc-project-path" content="src/ref.js"><link rel="stylesheet" type="text/css" media="all" href="assets/style.css"><script type="text/javascript" src="assets/behavior.js"></script><body><div id="meta"><div class="file-path">src/ref.js</div></div><div id="document"><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'></span></p>
+
+<p>The noderef class represents a pointer to a node, that can be
+resolved and fixed when needed</p>
+
+<p>Parameters:</p>
+
+<ul>
+<li><p><strong>index must be an int.</strong></p></li>
+<li><p><strong>parentRef must be a NodeREF.</strong></p></li>
+</ul></div></div><div class="code"><div class="wrapper"><span class="kd">var</span> <span class="nx">NodeRef</span> <span class="o">=</span> <span class="kd">function</span> <span class="nx">NodeRef</span><span class="p">(</span><span class="nx">index</span><span class="p">,</span> <span class="nx">parentRef</span><span class="p">)</span> <span class="p">{</span>
+  <span class="kd">var</span> <span class="nx">self</span> <span class="o">=</span> <span class="k">this</span><span class="p">;</span>
+  <span class="kd">var</span> <span class="nx">fixatedNode</span> <span class="o">=</span> <span class="kc">false</span><span class="p">;</span>
+  <span class="k">if</span><span class="p">(</span><span class="nx">parentRef</span><span class="p">.</span><span class="nx">nodeName</span> <span class="o">!==</span> <span class="kc">undefined</span><span class="p">)</span> <span class="p">{</span>
+   <span class="k">return</span> <span class="p">{</span>
+    <span class="nx">resolve</span><span class="o">:</span> <span class="kd">function</span><span class="p">(){</span> <span class="k">return</span> <span class="nx">parentRef</span><span class="p">;</span> <span class="p">},</span>
+    <span class="nx">debug</span><span class="o">:</span> <span class="kd">function</span><span class="p">(){</span> <span class="k">return</span> <span class="nx">parentRef</span><span class="p">.</span><span class="nx">nodeName</span><span class="p">.</span><span class="nx">toLowerCase</span><span class="p">();</span> <span class="p">}</span>
+   <span class="p">};</span>
+  <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">parentRef</span><span class="p">.</span><span class="nx">resolve</span> <span class="o">===</span> <span class="kc">undefined</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Node ref requires an static root node or an other Ref&#39;</span><span class="p">);</span>
+  <span class="p">}</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'> </span></p>
+
+<p>The reference to the parent node</p></div></div><div class="code"><div class="wrapper">  <span class="nx">self</span><span class="p">.</span><span class="nx">parentRef</span> <span class="o">=</span> <span class="nx">parentRef</span><span class="p">;</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'> </span></p>
+
+<p>Index of this node in the parent</p></div></div><div class="code"><div class="wrapper">  <span class="nx">self</span><span class="p">.</span><span class="nx">index</span> <span class="o">=</span> <span class="nx">index</span><span class="p">;</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Fix the resolved node to an static dom reference</p></div></div><div class="code"><div class="wrapper">  <span class="nx">self</span><span class="p">.</span><span class="nx">fixate</span> <span class="o">=</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+    <span class="nx">fixatedNode</span> <span class="o">=</span> <span class="nx">self</span><span class="p">.</span><span class="nx">resolve</span><span class="p">();</span>
+  <span class="p">};</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'></span></p>
+
+<p>Resolve the reference to an DomNOde</p>
+
+<p><strong>Returns an Element</strong><br/>(the dom node)</p></div></div><div class="code"><div class="wrapper">  <span class="nx">self</span><span class="p">.</span><span class="nx">resolve</span> <span class="o">=</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">if</span><span class="p">(</span><span class="nx">fixatedNode</span> <span class="o">!==</span> <span class="kc">false</span><span class="p">)</span>
+      <span class="k">return</span> <span class="nx">fixatedNode</span><span class="p">;</span> <span class="c1">//returned fixed</span>
+
+    <span class="kd">var</span> <span class="nx">parent</span> <span class="o">=</span> <span class="nx">parentRef</span><span class="p">.</span><span class="nx">resolve</span><span class="p">();</span>
+    <span class="kd">var</span> <span class="nx">wi</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">res</span><span class="p">;</span>
+    <span class="k">for</span><span class="p">(</span><span class="nx">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="nx">i</span><span class="o">&lt;</span><span class="nx">parent</span><span class="p">.</span><span class="nx">childNodes</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span> <span class="nx">i</span><span class="o">+=</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+      <span class="kd">var</span> <span class="nx">node</span> <span class="o">=</span> <span class="nx">parent</span><span class="p">.</span><span class="nx">childNodes</span><span class="p">[</span><span class="nx">i</span><span class="p">];</span>
+
+      <span class="k">if</span><span class="p">(</span><span class="nx">wi</span> <span class="o">===</span> <span class="nx">index</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">res</span> <span class="o">=</span> <span class="nx">node</span><span class="p">;</span>
+      <span class="p">}</span>
+
+      <span class="c1">//only increment when its not a text or text</span>
+      <span class="k">if</span><span class="p">(</span><span class="nx">node</span><span class="p">.</span><span class="nx">nodeType</span> <span class="o">!==</span> <span class="mi">3</span> <span class="o">||</span> <span class="nx">node</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/\s+/g</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">length</span> <span class="o">!==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">wi</span><span class="o">+=</span><span class="mi">1</span><span class="p">;</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="nx">res</span><span class="p">;</span>
+  <span class="p">};</span></div></div></div><div class="segment"><div class="comments doc-section"><div class="wrapper"><p><span class='doc-section-header'></span></p>
+
+<p>Return a debug string</p>
+
+<p><strong>Returns a string</strong><br/>(the report)</p></div></div><div class="code"><div class="wrapper">  <span class="nx">self</span><span class="p">.</span><span class="nx">debug</span> <span class="o">=</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="p">(</span><span class="nx">parentRef</span><span class="p">.</span><span class="nx">debug</span><span class="p">()</span> <span class="o">+</span> <span class="s1">&#39;.&#39;</span> <span class="o">+</span> <span class="nx">self</span><span class="p">.</span><span class="nx">index</span><span class="p">).</span><span class="nx">toLowerCase</span><span class="p">();</span>
+  <span class="p">};</span>
+<span class="p">};</span>
+
+<span class="nx">module</span><span class="p">.</span><span class="nx">exports</span> <span class="o">=</span> <span class="nx">NodeRef</span><span class="p">;</span></div></div></div></div></body></html>
