@@ -56,10 +56,23 @@ resolved and fixed when needed</p>
         <span class="k">return</span> <span class="nx">self</span><span class="p">.</span><span class="nx">node</span><span class="p">;</span> <span class="c1">//returned fixed</span>
 
       <span class="kd">var</span> <span class="nx">parent</span> <span class="o">=</span> <span class="nx">parentRef</span><span class="p">.</span><span class="nx">resolve</span><span class="p">();</span>
-      <span class="k">if</span><span class="p">(</span><span class="nx">parent</span> <span class="o">===</span> <span class="kc">undefined</span><span class="p">)</span> 
-        <span class="k">return</span> <span class="kc">undefined</span><span class="p">;</span>
+      <span class="kd">var</span> <span class="nx">wi</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">res</span><span class="p">;</span>
+      <span class="k">for</span><span class="p">(</span><span class="nx">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="nx">i</span><span class="o">&lt;</span><span class="nx">parent</span><span class="p">.</span><span class="nx">childNodes</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span> <span class="nx">i</span><span class="o">+=</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">node</span> <span class="o">=</span> <span class="nx">parent</span><span class="p">.</span><span class="nx">childNodes</span><span class="p">[</span><span class="nx">i</span><span class="p">];</span>
 
-      <span class="k">return</span> <span class="nx">parent</span><span class="p">.</span><span class="nx">childNodes</span><span class="p">[</span><span class="nx">index</span><span class="p">];</span>
+        <span class="k">if</span><span class="p">(</span><span class="nx">wi</span> <span class="o">===</span> <span class="nx">index</span><span class="p">)</span> <span class="p">{</span>
+          <span class="nx">res</span> <span class="o">=</span> <span class="nx">node</span><span class="p">;</span>
+        <span class="p">}</span>
+
+        <span class="c1">//only increment when its not a text or text</span>
+        <span class="k">if</span><span class="p">(</span><span class="nx">node</span><span class="p">.</span><span class="nx">nodeType</span> <span class="o">!==</span> <span class="mi">3</span> <span class="o">||</span> <span class="nx">node</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/\s+/g</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">).</span><span class="nx">length</span> <span class="o">!==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+          <span class="nx">wi</span><span class="o">+=</span><span class="mi">1</span><span class="p">;</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+          <span class="k">if</span><span class="p">(</span><span class="nx">debug</span><span class="p">)</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s1">&#39;skipped empty node:&#39;</span><span class="p">,</span> <span class="nx">node</span><span class="p">);</span>
+        <span class="p">}</span>
+      <span class="p">}</span>
+
+      <span class="k">return</span> <span class="nx">res</span><span class="p">;</span>
     <span class="p">};</span>
 
     <span class="nx">self</span><span class="p">.</span><span class="nx">debug</span> <span class="o">=</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
@@ -181,7 +194,9 @@ resolved and fixed when needed</p>
         <span class="p">}</span>
       <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">op</span> <span class="o">===</span> <span class="s1">&#39;insertNode&#39;</span><span class="p">)</span> <span class="p">{</span>
         <span class="kd">var</span> <span class="nx">newNode</span> <span class="o">=</span> <span class="nx">self</span><span class="p">.</span><span class="nx">createElement</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">node</span><span class="p">);</span>
-        <span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">().</span><span class="nx">insertBefore</span><span class="p">(</span><span class="nx">newNode</span><span class="p">,</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">().</span><span class="nx">childNodes</span><span class="p">[</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">index</span><span class="p">]);</span>
+        <span class="kd">var</span> <span class="nx">beforeNode</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">NodeRef</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">index</span><span class="p">,</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">);</span>
+
+        <span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">().</span><span class="nx">insertBefore</span><span class="p">(</span><span class="nx">newNode</span><span class="p">,</span> <span class="nx">beforeNode</span><span class="p">.</span><span class="nx">resolve</span><span class="p">());</span>
       <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">op</span> <span class="o">===</span> <span class="s1">&#39;replaceNode&#39;</span><span class="p">)</span> <span class="p">{</span>
         <span class="kd">var</span> <span class="nx">original</span> <span class="o">=</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">ref</span><span class="p">.</span><span class="nx">resolve</span><span class="p">();</span>
         <span class="kd">var</span> <span class="nx">replacement</span> <span class="o">=</span> <span class="nx">self</span><span class="p">.</span><span class="nx">createReplacementNode</span><span class="p">(</span><span class="nx">original</span><span class="p">,</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">type</span><span class="p">,</span> <span class="nx">cmd</span><span class="p">.</span><span class="nx">tag</span><span class="p">);</span>
@@ -236,6 +251,8 @@ prevent later changes from happening</p></div></div><div class="code"><div class
         <span class="k">return</span> <span class="nx">el</span><span class="p">;</span>
       <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">tag</span><span class="p">.</span><span class="nx">type</span> <span class="o">===</span> <span class="s1">&#39;text&#39;</span><span class="p">)</span> <span class="p">{</span>
         <span class="k">return</span> <span class="nb">document</span><span class="p">.</span><span class="nx">createTextNode</span><span class="p">(</span><span class="nx">tag</span><span class="p">.</span><span class="nx">data</span><span class="p">);</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="nx">tag</span><span class="p">.</span><span class="nx">type</span> <span class="o">===</span> <span class="s1">&#39;comment&#39;</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="nb">document</span><span class="p">.</span><span class="nx">createComment</span><span class="p">(</span><span class="nx">tag</span><span class="p">.</span><span class="nx">data</span><span class="p">);</span>
       <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
         <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s1">&#39;Creating elements of type &#39;</span> <span class="o">+</span> <span class="nx">tag</span><span class="p">.</span><span class="nx">type</span> <span class="o">+</span> <span class="s1">&#39;is not supported&#39;</span><span class="p">);</span>
       <span class="p">}</span>
