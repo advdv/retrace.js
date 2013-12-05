@@ -1,6 +1,6 @@
 {
   "name": "retrace.js",
-  "version": "0.1.1",
+  "version": "0.2.5",
   "description": "An browser library that uses html parsing to gain an comprehensive overview of newly added nodes",
   "main": "src/retrace.js",
   "scripts": {
@@ -31,6 +31,7 @@
     "should": "~2.1.0",
     "sinon": "~1.7.3",
     "karma": "~0.10.4",
+    "karma-coverage": "~0.1",
     "karma-mocha": "~0.1.0",
     "grunt-karma": "~0.6.2",
     "groc": "git://github.com/gilt/groc.git",

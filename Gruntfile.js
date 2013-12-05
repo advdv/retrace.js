@@ -42,7 +42,7 @@ module.exports = function(grunt) {
     watch: {
       dev: {
         files: ['src/**/*.js', 'test/**/*.js'],
-        tasks: ['test', 'browserify', 'karma:unit:run']
+        tasks: ['browserify', 'karma:unit:run']
       },
     },
 

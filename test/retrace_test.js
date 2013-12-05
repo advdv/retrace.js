@@ -1,4 +1,4 @@
-/* globals Retrace, Q, Tautologistics, document */
+/* globals Retrace, Q, DeepDiff, Tautologistics, document */
 describe('retrace', function(){
 
   var Parser, Promise,r;
@@ -17,7 +17,7 @@ describe('retrace', function(){
     Parser = Tautologistics.NodeHtmlParser;
     Promise = Q;
 
-    return new Retrace(Parser, Promise, document.body, debug);
+    return new Retrace(Parser, Promise, DeepDiff, document.body, debug);
   };
 
   beforeEach(function(){
@@ -56,6 +56,27 @@ describe('retrace', function(){
         });
       
       });
+
+    });    
+
+  });
+
+  it('parse() body', function(done){
+    var success = false;
+    r.parse('<html><head></head><body><div>1</div></body></html>').then(function(dom){
+
+      dom.length.should.equal(1);
+      r.rhs.should.equal(dom);
+      r.parse('<div></div><div></div>', function(html){
+        success = true;
+        return '';
+      }).then(function(dom2){
+
+        dom2.length.should.equal(0);
+      });
+
+      success.should.equal(true);
+      done();
 
     });    
 
@@ -341,7 +362,6 @@ describe('retrace', function(){
               '<ul></ul>' + 
             '</div>' +
             '<div class="navbar-collapse collapse">' +
-
             '</div>' +
           '</div>' +
           '<p></p>' +
@@ -480,7 +500,7 @@ describe('retrace', function(){
                 '</div>' +
                 '<button type="submit" class="btn btn-success"></button>' +
               '</form>' +
-            '</div><!--/.navbar-collapse -->' +
+            '</div>' +
           '</div>' +
           '<p>abc<i>a</i></p>' +
           '<p></p>' +
@@ -529,7 +549,7 @@ describe('retrace', function(){
         '</div>'
       ;       
 
-      r = getRetrace(o);
+      r = getRetrace(o, true);
       var start = new Date().getTime();
 
       r.parse(n).done(function(dom){

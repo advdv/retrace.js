@@ -41,6 +41,42 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
           "ignorePrefix": "}",
           "name": "JavaScript"
         },
+        "sourcePath": "/Users/advanderveer/Documents/Personal/Javascript/station.js/retrace.js/src/changeset.js",
+        "projectPath": "src/changeset.js",
+        "targetPath": "changeset",
+        "title": "changeset"
+      },
+      "depth": 1,
+      "outline": []
+    }, {
+      "type": "file",
+      "data": {
+        "language": {
+          "nameMatchers": [".js"],
+          "pygmentsLexer": "javascript",
+          "singleLineComment": ["//"],
+          "multiLineComment": ["/*", "*", "*/"],
+          "ignorePrefix": "}",
+          "name": "JavaScript"
+        },
+        "sourcePath": "/Users/advanderveer/Documents/Personal/Javascript/station.js/retrace.js/src/ref.js",
+        "projectPath": "src/ref.js",
+        "targetPath": "ref",
+        "title": "ref"
+      },
+      "depth": 1,
+      "outline": []
+    }, {
+      "type": "file",
+      "data": {
+        "language": {
+          "nameMatchers": [".js"],
+          "pygmentsLexer": "javascript",
+          "singleLineComment": ["//"],
+          "multiLineComment": ["/*", "*", "*/"],
+          "ignorePrefix": "}",
+          "name": "JavaScript"
+        },
         "sourcePath": "/Users/advanderveer/Documents/Personal/Javascript/station.js/retrace.js/src/retrace.js",
         "projectPath": "src/retrace.js",
         "targetPath": "retrace",

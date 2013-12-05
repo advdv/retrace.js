@@ -18,9 +18,10 @@ module.exports = function(config) {
       'node_modules/should/should.js',
       'node_modules/sinon/pkg/sinon.js',
 
-      //parser
+      //vendor libs
       'node_modules/q/q.js',
       'node_modules/htmlparser/lib/htmlparser.js',
+      'node_modules/deep-diff/index.js',
 
       //the lib
       'build/retrace.js',
@@ -38,6 +39,19 @@ module.exports = function(config) {
     // web server port
     port: 9876,
 
+
+    reporters: ['progress', 'coverage'],
+    preprocessors: {
+      // source files, that you wanna generate coverage for
+      // do not include tests or libraries
+      // (these files will be instrumented by Istanbul)
+      'build/retrace.js': ['coverage']
+    },
+
+    // optionally, configure the reporter
+    coverageReporter: {
+      dir : 'docs/coverage/'
+    },
 
     // enable / disable colors in the output (reporters and logs)
     colors: true,

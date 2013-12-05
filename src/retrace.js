@@ -1,7 +1,8 @@
 /* globals document */
-var deep = require('deep-diff');
+var Changeset = require('./changeset.js');
+var NodeRef = require('./ref.js');
 
-var Retrace = function(Parser, Promise, scope, debug) {
+var Retrace = function(Parser, Promise, Differ, scope, debug) {
   debug = (debug === undefined) ? (false) : (debug);
   var self = this;
   var parsed = false;   
@@ -28,228 +29,79 @@ var Retrace = function(Parser, Promise, scope, debug) {
    * Parse the raw html
    * @param  {string} html the html string
    */
-  self.parse = function parse(html) {
+  self.parse = function parse(html, extractor) {
+    if(extractor !== undefined && typeof extractor === 'function') {
+      html = extractor(html);
+    } else {
+      var oTag = html.match(/<body[^ >]*>/im);
+      if(oTag !== null) {
+        html = html.substring( html.indexOf(oTag[0]) + oTag[0].length, html.lastIndexOf('</body'));
+      }
+    }
+
     parsed = Promise.defer();
     self.parser.parseComplete(html);
     return parsed.promise;
   };
 
   /**
-   * The noderef class represents a pointer to a node, that can be
-   * resolved and fixed when needed
-   * 
-   * @param {int} index     
-   * @param {NodeREF} parentRef 
+   * Compare the lhs and rhs and return the diff
+   * @return {[type]} [description]
    */
-  var NodeRef = function(index, parentRef) {
-    var self = this;
-    if(parentRef.nodeName !== undefined) {
-     return {
-      resolve: function(){ return parentRef; },
-      debug: function(){ return parentRef.nodeName.toLowerCase(); }
-     };
-    } else if(parentRef.resolve === undefined) {
-      throw new Error('Node ref requires an static root node or an other Ref');
-    }
+  self.compare = function compare() {
+    var diff = Differ.diff(self.lhs, self.rhs);
+    if(!Array.isArray(diff))
+      return false;
 
-    self.parentRef = parentRef;
-    self.index = index;
-    self.node = false;
+    self.changes = new Changeset(debug);
+    var root = new NodeRef(0, scope);
+    diff.forEach(function(d){
+      traverse(d.item, self.lhs[d.index], new NodeRef(d.index, root), 1);
+    });
 
-    self.fixate = function() {
-      self.node = self.resolve();
-    };
-
-    self.resolve = function() {
-      if(self.node !== false)
-        return self.node; //returned fixed
-
-      var parent = parentRef.resolve();
-      if(parent === undefined) 
-        return undefined;
-
-      return parent.childNodes[index];
-    };
-
-    self.debug = function() {
-      return (parentRef.debug() + '.' + self.index).toLowerCase();
-    };
+    return self.changes;
   };
-
 
   /**
-   * The changeset class the records changes 
-   * 
-   * @param {boolean} debug enable debug mode
+   * The handler function
+   *   
+   * @param  {mixed} error html parser error
+   * @param  {object} dom  the parsed dom
    */
-  self.Changeset = function Changeset(debug) {
-    debug = (debug === undefined) ? (false) : (debug);
-    var supported = ['emptyNode', 'removeNode', 'insertNode', 'replaceNode', 'removeAttribute', 'setAttribute', 'setData'];
-    var self = this;
-    var content = [];
-
-    /**
-     * Retrieve all commands in this changeset
-     * @return {Array} [description]
-     */
-    self.all = function all() {
-      return content;
-    };
-
-    /**
-     * Add a command to the changeset
-     * @param {object} cmd the command
-     */
-    self.add = function add(cmd) {
-      if(supported.indexOf(cmd.op) === -1)
-        throw new Error('Unsupported operation: ' + cmd.op);
-
-      if(cmd.ref === undefined)
-        throw new Error('Command must provide a reference to the subject.');
-
-      if(cmd.depth === undefined)
-        throw new Error('Command must provide a depth property.');
-
-      if(cmd.order === undefined)
-        throw new Error('Command must provide an order property.');
-
-      content.push(cmd);
-    };
-
-    /**
-     * Make an estimated guess for the replacement node based on the original, given type and a tag
-     * @param  {Node} original the original Node
-     * @param  {tag|text|comment} type     the type we are converting to
-     * @param  {string} tag      when switching to  tag, which tag it will be
-     * @return {Node}  the replacementment node
-     */
-    self.createReplacementNode = function createReplacementNode(original, type, tag) {
-      //get defaults
-      var replacement = false;
-      if(tag === false)
-        tag = 'ins'; //nice! even has scematic meaning
-
-      if(type === false) {
-        type = 'tag';
-        if(original.nodeType !== 1)
-          throw new Error('Unexpected type switch');
-      }
-
-      if(original.nodeType === 1 && type === 'tag') {
-          var html = original.outerHTML;
-          html = html.replace(/<[^ >]*/i, '<' + tag);
-          html = html.replace(/<\/.*>$(?!.*<\/)/, '</'+ tag + '>');
-          replacement = document.createElement('div');
-          replacement.innerHTML = html;
-          replacement = replacement.childNodes[0];
-          return replacement;
+  self.handle = function handle(error, dom) {
+    if (error) {
+        //@todo should reject promise
+        throw new Error(error);
+    } else {
+      if(self.rhs === false) {
+        self.rhs = dom;
+        self.parser.parseComplete(scope.innerHTML);
+      } else if (self.lhs === false) {
+        self.lhs = dom;
+        parsed.resolve(self.rhs);        
       } else {
-        if(type === 'tag') {
-          return document.createElement(tag); //from something else to a tag
-        } else if(type === 'text') {
-          replacement = document.createTextNode(''); //from something else to a text
-          if(original.data !== undefined)
-            replacement.data = original.data;
-          return replacement;
-        } else if(type === 'comment') {
-          replacement = document.createComment(''); //from something else to a text
-          if(original.data !== undefined)
-            replacement.data = original.data;
-          return replacement;
-        } else {
-          throw new Error('Unexpected switch to:' + type);
-        }
+        self.lhs = self.rhs;
+        self.rhs = dom;
+        parsed.resolve(self.rhs);
       }
-    };
-
-    /**
-     * Apply one cmd to the dom
-     * @param  {object} cmd hash discribing the op
-     * @return {mixed}  result of the op
-     */
-    self.applyOne = function applyOne(cmd) {
-      var res = false;
-
-      if(debug) console.log('cmd:', cmd.op, 'ref:', (cmd.ref.resolve().nodeName === undefined) ? (cmd.ref.resolve()) : (cmd.ref.resolve().nodeName) );
-
-      if(cmd.op === 'removeNode') {
-        cmd.ref.parentRef.resolve().removeChild(cmd.ref.resolve());
-      } else if(cmd.op === 'removeAttribute') {
-        cmd.ref.resolve().removeAttribute(cmd.name);
-      } else if(cmd.op === 'setAttribute') {
-        cmd.ref.resolve().setAttribute(cmd.name, cmd.value);
-      } else if(cmd.op === 'emptyNode') {
-        while(cmd.ref.resolve().firstChild) {
-          cmd.ref.resolve().removeChild(cmd.ref.resolve().firstChild);
-        }
-      } else if(cmd.op === 'insertNode') {
-        var newNode = self.createElement(cmd.node);
-        cmd.ref.resolve().insertBefore(newNode, cmd.ref.resolve().childNodes[cmd.index]);
-      } else if(cmd.op === 'replaceNode') {
-        var original = cmd.ref.resolve();
-        var replacement = self.createReplacementNode(original, cmd.type, cmd.tag);
-        cmd.ref.parentRef.resolve().replaceChild(replacement, original);
-      } else if(cmd.op === 'setData') {
-        var node = cmd.ref.resolve();
-        node.data = cmd.rhs;
-      } 
-
-      return res;
-    };
-
-    /**
-     * Order the changes in such a way that destructive operations don't
-     * prevent later changes from happening
-     */
-    self.sortChanges = function sortChanges(changes) {
-      return changes;
-    };
-
-    /**
-     * Apply the changeset to the DOM
-     * @return {array} command results
-     */
-    self.apply = function apply() {
-      var res = [];
-
-      if(debug) console.log('-----------------APPLY--------------------');
-      self.sortChanges(content).forEach(function(c){
-        res.push(self.applyOne(c));
-      });
-      return res;
-    };
-
-    /**
-     * Create a new element using htmlparser like config
-     * @param  {object} tag config describing the tag
-     * @return {Element}     the new node
-     */
-    self.createElement = function createElement(tag) {
-
-      if(tag.type === 'tag') {
-        var el = document.createElement(tag.name);
-        if(tag.attribs) {
-          Object.keys(tag.attribs).forEach(function(name){
-            el.setAttribute(name, tag.attribs[name]);
-          }); 
-        }
-
-        if(tag.children !== undefined) {
-          tag.children.forEach(function(c){
-            el.appendChild(self.createElement(c));
-          });
-        }
-
-        return el;
-      } else if(tag.type === 'text') {
-        return document.createTextNode(tag.data);
-      } else {
-        throw new Error('Creating elements of type ' + tag.type + 'is not supported');
-      }
-
-    };
-
+    }
   };
+
+  /**
+   * The handler that is called on parse
+   * @type {Parser.DefaultHandler}
+   */
+  self.handler = new Parser.DefaultHandler(self.handle, { verbose: false, ignoreWhitespace: true });
+
+  /**
+   * The html parser
+   * @type {Parser}
+   */
+  self.parser = new Parser.Parser(self.handler);
+
+  /**
+   * Private methods
+   */
 
   var scheduleChildrenChange = function(d, lhs, ref, depth)
   {
@@ -454,7 +306,6 @@ var Retrace = function(Parser, Promise, scope, debug) {
    * @param  {int} depth indicatees how deep we are in the dom
    */
   var traverse = function(d, lhs, ref, depth)  {
-    depth = depth === undefined ? 1 : depth;
     var p = (d.path === undefined) ? ('self') : d.path[0];
     if(debug === true) {
       console.log(Array(depth).join(' ') + '['+d.kind + '] ' + ref.debug());      
@@ -509,66 +360,6 @@ var Retrace = function(Parser, Promise, scope, debug) {
       }
     }
   };
-
-  /**
-   * Compare the lhs and rhs and return the diff
-   * @return {[type]} [description]
-   */
-  self.compare = function() {
-    var diff = deep.diff(self.lhs, self.rhs);
-    if(!Array.isArray(diff))
-      return false;
-
-    self.changes = new self.Changeset(debug);
-
-    if(debug === true)
-      console.log('-----------------Walk--------------------');
-
-    var root = new NodeRef(0, scope);
-    diff.forEach(function(d){
-      traverse(d.item, self.lhs[d.index], new NodeRef(d.index, root), 1);
-    });
-
-    return self.changes;
-  };
-
-  /**
-   * The handler function
-   *   
-   * @param  {mixed} error html parser error
-   * @param  {object} dom  the parsed dom
-   */
-  self.handle = function(error, dom) {
-    if (error) {
-        //@todo should reject promise
-        throw new Error(error);
-    } else {
-
-      if(self.rhs === false) {
-        self.rhs = dom;
-        self.parser.parseComplete(scope.innerHTML);
-      } else if (self.lhs === false) {
-        self.lhs = dom;
-        parsed.resolve(self.rhs);        
-      } else {
-        self.lhs = self.rhs;
-        self.rhs = dom;
-        parsed.resolve(self.rhs);
-      }
-    }
-  };
-
-  /**
-   * The handler that is called on parse
-   * @type {Parser.DefaultHandler}
-   */
-  self.handler = new Parser.DefaultHandler(self.handle, { verbose: false, ignoreWhitespace: true });
-
-  /**
-   * The html parser
-   * @type {Parser}
-   */
-  self.parser = new Parser.Parser(self.handler);
 
 };
 
