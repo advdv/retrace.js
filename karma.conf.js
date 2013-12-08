@@ -19,7 +19,8 @@ module.exports = function(config) {
       'node_modules/sinon/pkg/sinon.js',
 
       //vendor libs
-      'node_modules/q/q.js',
+      
+      'test/vendor/bluebird_0.11-5.js',
       'node_modules/htmlparser/lib/htmlparser.js',
       'node_modules/deep-diff/index.js',
 

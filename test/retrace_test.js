@@ -1,7 +1,7 @@
-/* globals Retrace, Q, DeepDiff, Tautologistics, document */
+/* globals Retrace, Promise, DeepDiff, Tautologistics, document */
 describe('retrace', function(){
 
-  var Parser, Promise,r;
+  var Parser,r;
   var current = 
     '<div>'+
       '<h1></h1>' +
@@ -15,7 +15,6 @@ describe('retrace', function(){
   var getRetrace = function(html, debug) {
     document.body.innerHTML = html;    
     Parser = Tautologistics.NodeHtmlParser;
-    Promise = Q;
 
     return new Retrace(Parser, Promise, DeepDiff, document.body, debug);
   };
